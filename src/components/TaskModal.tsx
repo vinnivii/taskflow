@@ -27,6 +27,10 @@ export function TaskModal() {
     addTask,
     updateTask,
     addToast,
+    fetchComments,
+    fetchActivityLog,
+    addComment,
+    addActivityEntry,
   } = useStore();
 
   const perms = usePermissions();
@@ -48,6 +52,14 @@ export function TaskModal() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [commentText, setCommentText] = useState("");
+
+  // Fetch comments and activity when opening an existing task
+  useEffect(() => {
+    if (taskModalTaskId && taskModalMode !== "create") {
+      void fetchComments(taskModalTaskId);
+      void fetchActivityLog(taskModalTaskId);
+    }
+  }, [taskModalTaskId, taskModalMode]);
 
   // Populate form when viewing/editing existing task
   useEffect(() => {
@@ -98,43 +110,26 @@ export function TaskModal() {
         creatorId: currentUser!.id,
         dueDate: dueDate ? new Date(dueDate) : null,
         tags,
-        comments: [],
         attachments: 0,
-        activityLog: [
-          {
-            id: `a-${Date.now()}`,
-            taskId: newTaskId,
-            userId: currentUser!.id,
-            action: "created",
-            details: `criou a tarefa "${title.trim()}"`,
-            createdAt: new Date(),
-          },
-        ],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
       const created = await addTask(newTask);
       if (!created) return;
+      await addActivityEntry(newTaskId, {
+        taskId: newTaskId,
+        userId: currentUser!.id,
+        action: "created",
+        details: `criou a tarefa "${title.trim()}"`,
+      });
       addToast({ type: "success", title: "Sucesso", message: `Tarefa ${newTask.id} criada` });
     } else if (existingTask) {
       const updates: Partial<Task> = {};
       if (title !== existingTask.title) updates.title = title;
       if (description !== existingTask.description) updates.description = description;
       if (priority !== existingTask.priority) updates.priority = priority;
-      if (status !== existingTask.status) {
-        updates.status = status;
-        updates.activityLog = [
-          ...existingTask.activityLog,
-          {
-            id: `a-${Date.now()}`,
-            taskId: existingTask.id,
-            userId: currentUser!.id,
-            action: "status_changed",
-            details: `alterou o status para ${statusDisplayNames[status]}`,
-            createdAt: new Date(),
-          },
-        ];
-      }
+      const statusChanged = status !== existingTask.status;
+      if (statusChanged) updates.status = status;
       if (assigneeId !== existingTask.assigneeId) updates.assigneeId = assigneeId;
       if (dueDate !== (existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : ""))
         updates.dueDate = dueDate ? new Date(dueDate) : null;
@@ -143,6 +138,14 @@ export function TaskModal() {
       if (Object.keys(updates).length > 0) {
         const updated = await updateTask(existingTask.id, updates);
         if (!updated) return;
+        if (statusChanged) {
+          await addActivityEntry(existingTask.id, {
+            taskId: existingTask.id,
+            userId: currentUser!.id,
+            action: "status_changed",
+            details: `alterou o status para ${statusDisplayNames[status]}`,
+          });
+        }
         addToast({ type: "success", title: "Sucesso", message: `Tarefa ${existingTask.id} atualizada` });
       }
     }
@@ -163,28 +166,14 @@ export function TaskModal() {
 
   const handleAddComment = async () => {
     if (!commentText.trim() || !existingTask) return;
-    const newComment = {
-      id: `c-${Date.now()}`,
+    const added = await addComment(existingTask.id, commentText.trim());
+    if (!added) return;
+    await addActivityEntry(existingTask.id, {
       taskId: existingTask.id,
       userId: currentUser!.id,
-      content: commentText.trim(),
-      createdAt: new Date(),
-    };
-    const updated = await updateTask(existingTask.id, {
-      comments: [...existingTask.comments, newComment],
-      activityLog: [
-        ...existingTask.activityLog,
-        {
-          id: `a-${Date.now()}`,
-          taskId: existingTask.id,
-          userId: currentUser!.id,
-          action: "commented",
-          details: `comentou: "${commentText.trim()}"`,
-          createdAt: new Date(),
-        },
-      ],
+      action: "commented",
+      details: `comentou: "${commentText.trim()}"`,
     });
-    if (!updated) return;
     setCommentText("");
     addToast({ type: "success", title: "Sucesso", message: "Comentario adicionado" });
   };

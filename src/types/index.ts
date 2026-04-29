@@ -52,6 +52,7 @@ export interface ActivityEntry {
 
 export interface Task {
   id: string;
+  displayId: string;
   title: string;
   description: string;
   priority: TaskPriority;
@@ -61,9 +62,9 @@ export interface Task {
   creatorId: string;
   dueDate: Date | null;
   tags: string[];
-  comments: Comment[];
-  attachments: number;
-  activityLog: ActivityEntry[];
+  attachmentsCount: number;
+  comments?: Comment[];
+  activityLog?: ActivityEntry[];
   createdAt: Date;
   updatedAt: Date;
 }

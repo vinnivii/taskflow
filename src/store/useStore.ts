@@ -2,12 +2,14 @@ import { create } from "zustand";
 import type {
   User,
   Task,
+  Comment,
+  ActivityEntry,
+  Notification,
   ToastMessage,
   TaskStatus,
   TaskPriority,
   Department,
 } from "@/types";
-import { mockUsers } from "@/data/mockData";
 import { supabase } from "@/utils/supabase";
 
 const UUID_REGEX =
@@ -18,6 +20,7 @@ const isUuid = (value: string | null | undefined) =>
 
 type TaskRow = {
   id: string;
+  display_id: string;
   title: string;
   description: string;
   priority: TaskPriority;
@@ -27,15 +30,42 @@ type TaskRow = {
   creator_id: string;
   due_date: string | null;
   tags?: string[] | null;
-  comments?: Task["comments"] | null;
-  attachments?: number | null;
-  activity_log?: Task["activityLog"] | null;
+  attachments_count?: number | null;
   created_at: string;
   updated_at: string;
 };
 
+type CommentRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+};
+
+type ActivityRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  action: ActivityEntry["action"];
+  details: string;
+  created_at: string;
+};
+
+type NotificationRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  type: Notification["type"];
+  task_id: string | null;
+  created_at: string;
+};
+
 const toTask = (row: TaskRow): Task => ({
   id: row.id,
+  displayId: row.display_id,
   title: row.title,
   description: row.description,
   priority: row.priority,
@@ -45,15 +75,7 @@ const toTask = (row: TaskRow): Task => ({
   creatorId: row.creator_id,
   dueDate: row.due_date ? new Date(row.due_date) : null,
   tags: row.tags ?? [],
-  comments: (row.comments ?? []).map((comment) => ({
-    ...comment,
-    createdAt: new Date(comment.createdAt),
-  })),
-  attachments: row.attachments ?? 0,
-  activityLog: (row.activity_log ?? []).map((activity) => ({
-    ...activity,
-    createdAt: new Date(activity.createdAt),
-  })),
+  attachmentsCount: row.attachments_count ?? 0,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
@@ -69,9 +91,7 @@ const toTaskInsert = (task: Task) => ({
   creator_id: isUuid(task.creatorId) ? task.creatorId : crypto.randomUUID(),
   due_date: task.dueDate ? task.dueDate.toISOString() : null,
   tags: task.tags,
-  comments: task.comments,
-  attachments: task.attachments,
-  activity_log: task.activityLog,
+  attachments_count: task.attachmentsCount,
   created_at: task.createdAt.toISOString(),
   updated_at: task.updatedAt.toISOString(),
 });
@@ -92,9 +112,7 @@ const toTaskUpdate = (updates: Partial<Task>) => {
     payload.due_date = updates.dueDate ? updates.dueDate.toISOString() : null;
   }
   if (updates.tags !== undefined) payload.tags = updates.tags;
-  if (updates.comments !== undefined) payload.comments = updates.comments;
-  if (updates.attachments !== undefined) payload.attachments = updates.attachments;
-  if (updates.activityLog !== undefined) payload.activity_log = updates.activityLog;
+  if (updates.attachmentsCount !== undefined) payload.attachments_count = updates.attachmentsCount;
   payload.updated_at = new Date().toISOString();
 
   return payload;
@@ -114,6 +132,17 @@ interface AppState {
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
   moveTask: (taskId: string, newStatus: TaskStatus) => Promise<boolean>;
+
+  // Comments
+  fetchComments: (taskId: string) => Promise<Comment[]>;
+  addComment: (taskId: string, content: string) => Promise<boolean>;
+
+  // Activity logs
+  fetchActivityLog: (taskId: string) => Promise<ActivityEntry[]>;
+  addActivityEntry: (
+    taskId: string,
+    entry: Omit<ActivityEntry, "id" | "createdAt">
+  ) => Promise<boolean>;
 
   // Filters
   filters: {
@@ -154,21 +183,27 @@ interface AppState {
   closeTaskModal: () => void;
 
   // Notifications
-  notifications: { id: string; title: string; message: string; read: boolean }[];
+  notifications: Notification[];
   unreadCount: number;
-  markNotificationRead: (id: string) => void;
+  fetchNotifications: (userId: string) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
   // Auth
   currentUser: null,
   isAuthenticated: false,
-  login: (user) => set({ currentUser: user, isAuthenticated: true }),
+  login: (user) => {
+    set({ currentUser: user, isAuthenticated: true });
+    void get().fetchNotifications(user.id);
+  },
   logout: () =>
     set({
       currentUser: null,
       isAuthenticated: false,
       tasks: [],
+      notifications: [],
+      unreadCount: 0,
       filters: { department: "all", assignee: "all", priority: "all", status: "all" },
       searchQuery: "",
     }),
@@ -203,10 +238,7 @@ export const useStore = create<AppState>((set, get) => ({
       get().addToast({
         type: "error",
         title: "Erro ao criar tarefa",
-        message:
-          error.code === "42703"
-            ? "A tabela tasks nao possui as colunas de atividade/comentarios. Atualize o schema do banco."
-            : error.message,
+        message: error.message,
       });
       return false;
     }
@@ -226,17 +258,18 @@ export const useStore = create<AppState>((set, get) => ({
       get().addToast({
         type: "error",
         title: "Erro ao atualizar tarefa",
-        message:
-          error.code === "42703"
-            ? "A tabela tasks nao possui as colunas de atividade/comentarios. Atualize o schema do banco."
-            : error.message,
+        message: error.message,
       });
       return false;
     }
 
     const updatedTask = toTask(data as TaskRow);
     set((state) => ({
-      tasks: state.tasks.map((task) => (task.id === taskId ? updatedTask : task)),
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? { ...updatedTask, comments: task.comments, activityLog: task.activityLog }
+          : task
+      ),
     }));
     return true;
   },
@@ -274,8 +307,144 @@ export const useStore = create<AppState>((set, get) => ({
 
     const movedTask = toTask(data as TaskRow);
     set((state) => ({
-      tasks: state.tasks.map((task) => (task.id === taskId ? movedTask : task)),
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? { ...movedTask, comments: task.comments, activityLog: task.activityLog }
+          : task
+      ),
     }));
+    return true;
+  },
+
+  // Comments
+  fetchComments: async (taskId) => {
+    const { data, error } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: true });
+
+    if (error) return [];
+
+    const comments: Comment[] = (data as CommentRow[]).map((row) => ({
+      id: row.id,
+      taskId: row.task_id,
+      userId: row.user_id,
+      content: row.content,
+      createdAt: new Date(row.created_at),
+    }));
+
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, comments } : t
+      ),
+    }));
+
+    return comments;
+  },
+  addComment: async (taskId, content) => {
+    const currentUser = get().currentUser;
+    if (!currentUser) return false;
+
+    const { data, error } = await supabase
+      .from("comments")
+      .insert({ task_id: taskId, user_id: currentUser.id, content })
+      .select("*")
+      .single();
+
+    if (error) {
+      get().addToast({
+        type: "error",
+        title: "Erro ao adicionar comentario",
+        message: error.message,
+      });
+      return false;
+    }
+
+    const newComment: Comment = {
+      id: (data as CommentRow).id,
+      taskId: (data as CommentRow).task_id,
+      userId: (data as CommentRow).user_id,
+      content: (data as CommentRow).content,
+      createdAt: new Date((data as CommentRow).created_at),
+    };
+
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, comments: [...(t.comments ?? []), newComment] }
+          : t
+      ),
+    }));
+
+    return true;
+  },
+
+  // Activity logs
+  fetchActivityLog: async (taskId) => {
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .select("*")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: true });
+
+    if (error) return [];
+
+    const activityLog: ActivityEntry[] = (data as ActivityRow[]).map((row) => ({
+      id: row.id,
+      taskId: row.task_id,
+      userId: row.user_id,
+      action: row.action,
+      details: row.details,
+      createdAt: new Date(row.created_at),
+    }));
+
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, activityLog } : t
+      ),
+    }));
+
+    return activityLog;
+  },
+  addActivityEntry: async (taskId, entry) => {
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .insert({
+        task_id: taskId,
+        user_id: entry.userId,
+        action: entry.action,
+        details: entry.details,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      get().addToast({
+        type: "error",
+        title: "Erro ao registrar atividade",
+        message: error.message,
+      });
+      return false;
+    }
+
+    const newEntry: ActivityEntry = {
+      id: (data as ActivityRow).id,
+      taskId: (data as ActivityRow).task_id,
+      userId: (data as ActivityRow).user_id,
+      action: (data as ActivityRow).action,
+      details: (data as ActivityRow).details,
+      createdAt: new Date((data as ActivityRow).created_at),
+    };
+
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, activityLog: [...(t.activityLog ?? []), newEntry] }
+          : t
+      ),
+    }));
+
     return true;
   },
 
@@ -335,13 +504,41 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   // Notifications
-  notifications: [
-    { id: "n1", title: "Nova tarefa atribuida", message: "Voce foi atribuido a T-1247", read: false },
-    { id: "n2", title: "Tarefa movida", message: "T-1230 foi movida para Em Revisao", read: false },
-    { id: "n3", title: "Prazo proximo", message: "T-1242 vence amanha", read: true },
-  ],
-  unreadCount: 2,
-  markNotificationRead: (id) =>
+  notifications: [],
+  unreadCount: 0,
+  fetchNotifications: async (userId) => {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) return;
+
+    const notifications: Notification[] = (data as NotificationRow[]).map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      message: row.message,
+      read: row.is_read,
+      type: row.type,
+      taskId: row.task_id,
+      createdAt: new Date(row.created_at),
+    }));
+
+    set({
+      notifications,
+      unreadCount: notifications.filter((n) => !n.read).length,
+    });
+  },
+  markNotificationRead: async (id) => {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id);
+
+    if (error) return;
+
     set((state) => ({
       notifications: state.notifications.map((n) =>
         n.id === id ? { ...n, read: true } : n
@@ -351,5 +548,6 @@ export const useStore = create<AppState>((set, get) => ({
         state.unreadCount -
           (state.notifications.find((n) => n.id === id && !n.read) ? 1 : 0)
       ),
-    })),
+    }));
+  },
 }));
