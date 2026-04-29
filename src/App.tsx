@@ -25,6 +25,12 @@ function RoleGuard({
 }
 
 function App() {
+  const initAuth = useStore((s) => s.initAuth);
+
+  useEffect(() => {
+    void initAuth();
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<Login />} />

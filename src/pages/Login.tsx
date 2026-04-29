@@ -2,72 +2,33 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { roleDisplayNames, roleDepartmentMap } from "@/types";
-import type { UserRole } from "@/types";
-
-const roleOptions: UserRole[] = [
-  "supervisor_geral",
-  "supervisor_adjunto",
-  "tecnico",
-  "estagiario",
-  "comercial",
-  "financeiro",
-];
-
-const getDepartmentLabel = (role: UserRole) => {
-  const dept = roleDepartmentMap[role];
-  return dept === "comercial"
-    ? "Comercial"
-    : dept === "financeiro"
-      ? "Financeiro"
-      : "Suporte";
-};
+import { supabase } from "@/utils/supabase";
+import { generateAvatar } from "@/utils/avatar";
+import logoImg from "@/assets/logo.png";
+import type { User } from "@/types";
 
 export function Login() {
   const navigate = useNavigate();
   const login = useStore((s) => s.login);
   const isAuthenticated = useStore((s) => s.isAuthenticated);
 
-  const [role, setRole] = useState<UserRole | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{
-    role?: string;
-    email?: string;
-    password?: string;
-  }>({});
+  const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
 
-  // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/quadro");
-    }
+    if (isAuthenticated) navigate("/quadro");
   }, [isAuthenticated, navigate]);
-
-  // Auto-fill on role change
-  useEffect(() => {
-    if (role) {
-      setEmail(`${role.replace(/_/g, "")}@Softcom.demo`);
-      setPassword("demo1234");
-      setErrors({});
-    }
-  }, [role]);
-
-  const validate = () => {
-    const newErrors: typeof errors = {};
-    if (!role) newErrors.role = "Selecione um cargo";
-    if (!email.trim()) newErrors.email = "Informe seu e-mail";
-    if (!password.trim()) newErrors.password = "Informe sua senha";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) {
+    setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError("Informe e-mail e senha.");
       setShake(true);
       setTimeout(() => setShake(false), 300);
       return;
@@ -75,44 +36,44 @@ export function Login() {
 
     setIsLoading(true);
 
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 800));
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    if (role) {
-      const mockUser = {
-        id: crypto.randomUUID(),
-        name: roleDisplayNames[role],
-        email: email,
-        avatar: ``,
-        role,
-        department: roleDepartmentMap[role],
-        createdAt: new Date("2024-01-15"),
-      };
-
-      // Generate avatar
-      const colors = [
-        "#F2C94C",
-        "#A855F7",
-        "#3B82F6",
-        "#22C55E",
-        "#EF4444",
-        "#F97316",
-      ];
-      const index = roleOptions.indexOf(role);
-      const color = colors[index % colors.length];
-      const initials = mockUser.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase();
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="${color}" opacity="0.9"/><text x="32" y="38" text-anchor="middle" fill="#0A0A0A" font-family="Inter,sans-serif" font-weight="700" font-size="22">${initials}</text></svg>`;
-      mockUser.avatar = `data:image/svg+xml;base64,${btoa(svg)}`;
-
-      login(mockUser);
-      navigate("/quadro");
+    if (authError || !data.user) {
+      setError("E-mail ou senha incorretos.");
+      setShake(true);
+      setTimeout(() => setShake(false), 300);
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      setError("Usuário não encontrado no sistema.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    const user: User = {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      avatar: generateAvatar(profile.name),
+      role: profile.role,
+      department: profile.department,
+      createdAt: new Date(profile.created_at),
+    };
+
+    login(user);
+    navigate("/quadro");
   };
 
   return (
@@ -126,18 +87,13 @@ export function Login() {
       <div className="w-full max-w-[420px] px-6">
         {/* Logo */}
         <div className="flex flex-col items-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-400">
-          <div className="w-16 h-16 rounded-full bg-[#F2C94C] flex items-center justify-center">
-            <span className="text-[#0A0A0A] font-bold text-[28px]">S</span>
-          </div>
+          <img src={logoImg} alt="Logo" className="w-16 h-16" />
           <h1 className="text-[32px] font-bold text-[#F0F0F0] tracking-[-1.5px] leading-[38px] mt-5">
-            Softcom
+            {import.meta.env.VITE_APP_NAME_EMPRESA}
           </h1>
           <h2 className="text-[18px] font-semibold text-[#8A8A8A] tracking-[-0.5px] leading-6 mt-1">
             TaskFlow
           </h2>
-          <p className="text-[13px] text-[#5A5A5A] mt-2">
-            Gerenciamento de Tarefas Internas
-          </p>
         </div>
 
         {/* Login Card */}
@@ -147,29 +103,12 @@ export function Login() {
           }`}
         >
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Role selector */}
-            <div>
-              <label className="text-[11px] font-medium tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
-                Seu cargo
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole | "")}
-                className={`w-full h-11 bg-[#1E1E1E] border rounded-md px-3 text-[14px] text-[#F0F0F0] outline-none focus:border-[#3A3A3A] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)] appearance-none cursor-pointer ${
-                  errors.role ? "border-[#EF4444]" : "border-[#2A2A2A]"
-                }`}
-              >
-                <option value="">Selecione seu cargo...</option>
-                {roleOptions.map((r) => (
-                  <option key={r} value={r}>
-                    {roleDisplayNames[r]} ({getDepartmentLabel(r)})
-                  </option>
-                ))}
-              </select>
-              {errors.role && (
-                <p className="text-[#EF4444] text-[11px] mt-1">{errors.role}</p>
-              )}
-            </div>
+            {/* Error message */}
+            {error && (
+              <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-md px-3 py-2.5">
+                <p className="text-[#EF4444] text-[13px]">{error}</p>
+              </div>
+            )}
 
             {/* Email */}
             <div>
@@ -179,21 +118,11 @@ export function Login() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email)
-                    setErrors((prev) => ({ ...prev, email: undefined }));
-                }}
-                placeholder="seu@Softcom.com"
-                className={`w-full h-11 bg-[#1E1E1E] border rounded-md px-3 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)] ${
-                  errors.email ? "border-[#EF4444]" : "border-[#2A2A2A]"
-                }`}
+                onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                placeholder="seu@email.com"
+                autoComplete="email"
+                className="w-full h-11 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)]"
               />
-              {errors.email && (
-                <p className="text-[#EF4444] text-[11px] mt-1">
-                  {errors.email}
-                </p>
-              )}
             </div>
 
             {/* Password */}
@@ -205,15 +134,10 @@ export function Login() {
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password)
-                      setErrors((prev) => ({ ...prev, password: undefined }));
-                  }}
-                  placeholder="********"
-                  className={`w-full h-11 bg-[#1E1E1E] border rounded-md px-3 pr-10 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)] ${
-                    errors.password ? "border-[#EF4444]" : "border-[#2A2A2A]"
-                  }`}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className="w-full h-11 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 pr-10 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)]"
                 />
                 <button
                   type="button"
@@ -223,11 +147,6 @@ export function Login() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-[#EF4444] text-[11px] mt-1">
-                  {errors.password}
-                </p>
-              )}
             </div>
 
             {/* Submit */}
@@ -236,31 +155,19 @@ export function Login() {
               disabled={isLoading}
               className="w-full h-11 bg-[#F2C94C] hover:bg-[#F5D76A] text-[#0A0A0A] text-[13px] font-semibold tracking-[0.3px] rounded-md transition-all hover:-translate-y-px disabled:opacity-80 disabled:cursor-wait flex items-center justify-center"
             >
-              {isLoading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                "Entrar"
-              )}
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : "Entrar"}
             </button>
           </form>
 
-          {/* Help text */}
           <div className="mt-5 text-center">
-            <button
-              type="button"
-              className="text-[#F2C94C] text-[13px] hover:underline transition-all"
-            >
-              Esqueceu a senha?
-            </button>
-            <p className="text-[#5A5A5A] text-[11px] tracking-[0.5px] mt-1">
-              Entre em contato com o Supervisor Geral
+            <p className="text-[#5A5A5A] text-[11px] tracking-[0.5px]">
+              Problemas para acessar? Entre em contato com o Supervisor Geral
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-[#5A5A5A] text-[11px] tracking-[0.5px] text-center mt-8">
-          Softcom ERP Support — TaskFlow v1.0
+          {import.meta.env.VITE_APP_NAME_EMPRESA} — {import.meta.env.VITE_APP_NAME} v{import.meta.env.VITE_APP_VERSION}
         </p>
       </div>
     </div>

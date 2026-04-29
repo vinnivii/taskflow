@@ -100,7 +100,7 @@ export function Relatorios() {
   // Recent activity (last 10)
   const recentActivity = useMemo(() => {
     const allActivity = filteredTasks.flatMap((t) =>
-      t.activityLog.map((a) => ({ ...a, taskTitle: t.title, taskId: t.id }))
+      (t.activityLog ?? []).map((a) => ({ ...a, taskTitle: t.title, taskId: t.id }))
     );
     allActivity.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return allActivity.slice(0, 10);

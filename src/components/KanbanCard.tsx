@@ -137,16 +137,16 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
         {/* Comments & attachments */}
         <div className="flex items-center gap-2 text-[#5A5A5A]">
-          {task.comments.length > 0 && (
+          {(task.comments?.length ?? 0) > 0 && (
             <span className="flex items-center gap-1 text-[11px]">
               <MessageSquare size={12} />
-              {task.comments.length}
+              {task.comments?.length ?? 0}
             </span>
           )}
-          {task.attachments > 0 && (
+          {(task.attachmentsCount ?? 0) > 0 && (
             <span className="flex items-center gap-1 text-[11px]">
               <Paperclip size={12} />
-              {task.attachments}
+              {task.attachmentsCount ?? 0}
             </span>
           )}
         </div>

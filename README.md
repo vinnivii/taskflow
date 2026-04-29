@@ -115,6 +115,12 @@ Depois, sempre que houver migrations novas:
 npm run db:push
 ```
 
+### Aplicar seeders no Supabase remoto
+
+```bash
+npx supabase db query --linked --file supabase/(nome_do_seeder).sql
+```
+
 ### Outros comandos
 
 ```bash

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Session } from "@supabase/supabase-js";
 import type {
   User,
   Task,
@@ -11,6 +12,7 @@ import type {
   Department,
 } from "@/types";
 import { supabase } from "@/utils/supabase";
+import { generateAvatar } from "@/utils/avatar";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,7 +125,8 @@ interface AppState {
   currentUser: User | null;
   isAuthenticated: boolean;
   login: (user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
+  initAuth: () => Promise<void>;
 
   // Tasks
   tasks: Task[];
@@ -189,7 +192,20 @@ interface AppState {
   markNotificationRead: (id: string) => Promise<void>;
 }
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>((set, get) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT" || !session) {
+      set({
+        currentUser: null,
+        isAuthenticated: false,
+        tasks: [],
+        notifications: [],
+        unreadCount: 0,
+      });
+    }
+  });
+
+  return ({
   // Auth
   currentUser: null,
   isAuthenticated: false,
@@ -197,7 +213,8 @@ export const useStore = create<AppState>((set, get) => ({
     set({ currentUser: user, isAuthenticated: true });
     void get().fetchNotifications(user.id);
   },
-  logout: () =>
+  logout: async () => {
+    await supabase.auth.signOut();
     set({
       currentUser: null,
       isAuthenticated: false,
@@ -206,7 +223,33 @@ export const useStore = create<AppState>((set, get) => ({
       unreadCount: 0,
       filters: { department: "all", assignee: "all", priority: "all", status: "all" },
       searchQuery: "",
-    }),
+    });
+  },
+  initAuth: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
+
+    if (error || !data) return;
+
+    const user: User = {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      avatar: generateAvatar(data.name),
+      role: data.role,
+      department: data.department,
+      createdAt: new Date(data.created_at),
+    };
+
+    set({ currentUser: user, isAuthenticated: true });
+    void get().fetchNotifications(user.id);
+  },
 
   // Tasks
   tasks: [],
@@ -550,4 +593,4 @@ export const useStore = create<AppState>((set, get) => ({
       ),
     }));
   },
-}));
+}); });
