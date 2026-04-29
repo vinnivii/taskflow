@@ -4,7 +4,6 @@ import { Clock, MessageSquare, Paperclip } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
-import { getUserById } from "@/data/mockData";
 import { priorityColors, statusColors, departmentColors } from "@/types";
 import type { Task, TaskPriority } from "@/types";
 
@@ -14,6 +13,7 @@ interface KanbanCardProps {
 
 export function KanbanCard({ task }: KanbanCardProps) {
   const openTaskModal = useStore((s) => s.openTaskModal);
+  const users = useStore((s) => s.users);
 
   const {
     attributes,
@@ -31,7 +31,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const assignee = getUserById(task.assigneeId);
+  const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
   const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && task.status !== "concluido";
 
   return (

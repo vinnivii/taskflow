@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
-import { mockUsers, getUserById } from "@/data/mockData";
+
 import {
   priorityColors,
   statusColors,
@@ -23,6 +23,7 @@ export function TaskModal() {
     taskModalDefaultStatus,
     closeTaskModal,
     tasks,
+    users,
     currentUser,
     addTask,
     updateTask,
@@ -110,7 +111,8 @@ export function TaskModal() {
         creatorId: currentUser!.id,
         dueDate: dueDate ? new Date(dueDate) : null,
         tags,
-        attachments: 0,
+        displayId: "",
+        attachmentsCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -181,8 +183,8 @@ export function TaskModal() {
   const task = existingTask;
   const activityLog = task?.activityLog || [];
   const resolveActorName = (userId: string) => {
-    const mockUser = getUserById(userId);
-    if (mockUser?.name) return mockUser.name;
+    const found = users.find((u) => u.id === userId);
+    if (found?.name) return found.name;
     if (currentUser?.id === userId) return currentUser.name;
     return "Usuario";
   };
@@ -245,12 +247,11 @@ export function TaskModal() {
                   </label>
                   <div className="space-y-3 mb-4">
                     {activityLog.map((entry) => {
-                      const user = getUserById(entry.userId);
                       const actorName = resolveActorName(entry.userId);
                       return (
                         <div key={entry.id} className="flex items-start gap-2">
                           <img
-                            src={user?.avatar || currentUser?.avatar || ""}
+                            src={users.find((u) => u.id === entry.userId)?.avatar || currentUser?.avatar || ""}
                             alt={actorName}
                             className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                           />
@@ -330,7 +331,7 @@ export function TaskModal() {
                   className="w-full h-9 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] outline-none focus:border-[#3A3A3A] disabled:opacity-60"
                 >
                   <option value="">Nao atribuido</option>
-                  {mockUsers.map((u) => (
+                  {users.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
                     </option>

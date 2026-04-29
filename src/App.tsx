@@ -10,6 +10,10 @@ import { useEffect } from "react";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const authLoading = useStore((s) => s.authLoading);
+
+  if (authLoading) return null;
+
   return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
 }
 

@@ -11,7 +11,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { FilterBar } from "@/components/FilterBar";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
-import { getUserById } from "@/data/mockData";
+
 import {
   priorityColors,
   statusColors,
@@ -27,6 +27,7 @@ type SortDirection = "asc" | "desc";
 
 export function Tarefas() {
   const tasks = useStore((s) => s.tasks);
+  const users = useStore((s) => s.users);
   const filters = useStore((s) => s.filters);
   const searchQuery = useStore((s) => s.searchQuery);
   const openTaskModal = useStore((s) => s.openTaskModal);
@@ -197,7 +198,7 @@ export function Tarefas() {
               </thead>
               <tbody>
                 {paginatedTasks.map((task, index) => {
-                  const assignee = getUserById(task.assigneeId);
+                  const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
                   return (
                     <tr
                       key={task.id}

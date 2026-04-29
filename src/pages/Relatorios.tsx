@@ -4,7 +4,7 @@ import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } fro
 import { ptBR } from "date-fns/locale";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
-import { mockTasks, getUserById } from "@/data/mockData";
+
 import { statusColors, statusDisplayNames, departmentDisplayNames } from "@/types";
 import type { TaskStatus, Department } from "@/types";
 
@@ -14,6 +14,7 @@ export function Relatorios() {
   const [dateRange, setDateRange] = useState<DateRange>("month");
 
   const tasks = useStore((s) => s.tasks);
+  const users = useStore((s) => s.users);
 
   // Calculate date bounds
   const { startDate, endDate } = useMemo(() => {
@@ -314,7 +315,7 @@ export function Relatorios() {
         ) : (
           <div className="space-y-0">
             {recentActivity.map((entry) => {
-              const user = getUserById(entry.userId);
+              const user = users.find((u) => u.id === entry.userId) ?? null;
               return (
                 <div
                   key={entry.id}

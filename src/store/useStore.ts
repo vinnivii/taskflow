@@ -124,9 +124,14 @@ interface AppState {
   // Auth
   currentUser: User | null;
   isAuthenticated: boolean;
+  authLoading: boolean;
   login: (user: User) => void;
   logout: () => Promise<void>;
   initAuth: () => Promise<void>;
+
+  // Users
+  users: User[];
+  fetchUsers: () => Promise<void>;
 
   // Tasks
   tasks: Task[];
@@ -199,6 +204,7 @@ export const useStore = create<AppState>((set, get) => {
         currentUser: null,
         isAuthenticated: false,
         tasks: [],
+        users: [],
         notifications: [],
         unreadCount: 0,
       });
@@ -209,8 +215,10 @@ export const useStore = create<AppState>((set, get) => {
   // Auth
   currentUser: null,
   isAuthenticated: false,
+  authLoading: true,
   login: (user) => {
     set({ currentUser: user, isAuthenticated: true });
+    void get().fetchUsers();
     void get().fetchNotifications(user.id);
   },
   logout: async () => {
@@ -219,6 +227,7 @@ export const useStore = create<AppState>((set, get) => {
       currentUser: null,
       isAuthenticated: false,
       tasks: [],
+      users: [],
       notifications: [],
       unreadCount: 0,
       filters: { department: "all", assignee: "all", priority: "all", status: "all" },
@@ -227,7 +236,10 @@ export const useStore = create<AppState>((set, get) => {
   },
   initAuth: async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      set({ authLoading: false });
+      return;
+    }
 
     const { data, error } = await supabase
       .from("users")
@@ -235,7 +247,10 @@ export const useStore = create<AppState>((set, get) => {
       .eq("id", session.user.id)
       .single();
 
-    if (error || !data) return;
+    if (error || !data) {
+      set({ authLoading: false });
+      return;
+    }
 
     const user: User = {
       id: data.id,
@@ -247,8 +262,32 @@ export const useStore = create<AppState>((set, get) => {
       createdAt: new Date(data.created_at),
     };
 
-    set({ currentUser: user, isAuthenticated: true });
+    set({ currentUser: user, isAuthenticated: true, authLoading: false });
+    void get().fetchUsers();
     void get().fetchNotifications(user.id);
+  },
+
+  // Users
+  users: [],
+  fetchUsers: async () => {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) return;
+
+    const users: User[] = (data as Array<{ id: string; name: string; email: string; avatar: string; role: User["role"]; department: User["department"]; created_at: string }>).map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      avatar: generateAvatar(row.name),
+      role: row.role,
+      department: row.department,
+      createdAt: new Date(row.created_at),
+    }));
+
+    set({ users });
   },
 
   // Tasks

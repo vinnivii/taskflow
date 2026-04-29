@@ -3,7 +3,7 @@ import { Users, Plus, X } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
-import { mockUsers, mockTasks as tasks } from "@/data/mockData";
+
 import {
   roleDisplayNames,
   departmentDisplayNames,
@@ -12,7 +12,8 @@ import {
 import type { User, UserRole, Department } from "@/types";
 
 export function Equipe() {
-  const currentUser = useStore((s) => s.currentUser);
+  const users = useStore((s) => s.users);
+  const tasks = useStore((s) => s.tasks);
   const perms = usePermissions();
 
   const [search, setSearch] = useState("");
@@ -23,7 +24,7 @@ export function Equipe() {
 
   // Filter members
   const filteredMembers = useMemo(() => {
-    let result = [...mockUsers];
+    let result = [...users];
 
     if (search.trim()) {
       const q = search.toLowerCase();
