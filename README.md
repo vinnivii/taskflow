@@ -136,6 +136,53 @@ npx supabase migration new nome_da_migration
 
 Isso cria um arquivo vazio em `supabase/migrations/` com o timestamp correto. Escreva o SQL e rode `db:push`.
 
+## Versionamento
+
+A versão do app é controlada por dois lugares em conjunto:
+
+**`package.json`** — campo `version` (fonte de verdade):
+```json
+{
+  "version": "0.0.0"
+}
+```
+
+**`.env`** — variável lida pelo frontend em tempo de build:
+```env
+VITE_APP_VERSION=0.0.0
+```
+
+A versão aparece no rodapé da tela de Login (`Softcom TaskFlow v0.0.0`).
+
+### Convenção de numeração
+
+O projeto segue [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`
+
+| Segmento | Quando incrementar | Exemplo |
+|---|---|---|
+| `PATCH` | Correção de bug, ajuste visual, texto | `0.0.0` → `0.0.1` |
+| `MINOR` | Nova funcionalidade sem quebrar nada existente | `0.0.1` → `0.1.0` |
+| `MAJOR` | Mudança que quebra compatibilidade ou reescrita significativa | `0.1.0` → `1.0.0` |
+
+### Como lançar uma nova versão
+
+1. Atualize `"version"` no `package.json`
+2. Atualize `VITE_APP_VERSION` no `.env` (e no `.env.example` se necessário)
+3. Crie um commit com a mensagem `chore: bump version to X.Y.Z`
+4. Crie uma tag no git:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+### Histórico de versões
+
+| Versão | Data | Descrição |
+|---|---|---|
+| `0.0.0` | 2026-04-29 | Versão inicial — kanban, autenticação Supabase, perfis por role |
+
+---
+
 ## Build
 
 ```bash
