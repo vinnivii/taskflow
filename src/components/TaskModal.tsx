@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { X, Send, User, Clock, Tag, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -50,7 +50,7 @@ export function TaskModal() {
   const [commentText, setCommentText] = useState("");
 
   // Populate form when viewing/editing existing task
-  useState(() => {
+  useEffect(() => {
     if (existingTask) {
       setTitle(existingTask.title);
       setDescription(existingTask.description);
@@ -70,7 +70,7 @@ export function TaskModal() {
       setDueDate("");
       setTags([]);
     }
-  });
+  }, [existingTask, taskModalMode, taskModalDefaultStatus, currentUser?.department]);
 
   if (!taskModalOpen) return null;
 
@@ -79,15 +79,16 @@ export function TaskModal() {
     (existingTask &&
       perms.canEditTask(existingTask.creatorId, existingTask.assigneeId));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       addToast({ type: "error", title: "Erro", message: "Informe um titulo para a tarefa" });
       return;
     }
 
     if (taskModalMode === "create") {
+      const newTaskId = crypto.randomUUID();
       const newTask: Task = {
-        id: `T-${Math.max(...tasks.map((t) => parseInt(t.id.split("-")[1]))) + 1}`,
+        id: newTaskId,
         title: title.trim(),
         description: description.trim(),
         priority,
@@ -102,17 +103,18 @@ export function TaskModal() {
         activityLog: [
           {
             id: `a-${Date.now()}`,
-            taskId: "new",
+            taskId: newTaskId,
             userId: currentUser!.id,
             action: "created",
-            details: "Tarefa criada",
+            details: `criou a tarefa "${title.trim()}"`,
             createdAt: new Date(),
           },
         ],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      addTask(newTask);
+      const created = await addTask(newTask);
+      if (!created) return;
       addToast({ type: "success", title: "Sucesso", message: `Tarefa ${newTask.id} criada` });
     } else if (existingTask) {
       const updates: Partial<Task> = {};
@@ -128,7 +130,7 @@ export function TaskModal() {
             taskId: existingTask.id,
             userId: currentUser!.id,
             action: "status_changed",
-            details: `Status alterado para ${statusDisplayNames[status]}`,
+            details: `alterou o status para ${statusDisplayNames[status]}`,
             createdAt: new Date(),
           },
         ];
@@ -139,7 +141,8 @@ export function TaskModal() {
       if (JSON.stringify(tags) !== JSON.stringify(existingTask.tags)) updates.tags = tags;
 
       if (Object.keys(updates).length > 0) {
-        updateTask(existingTask.id, updates);
+        const updated = await updateTask(existingTask.id, updates);
+        if (!updated) return;
         addToast({ type: "success", title: "Sucesso", message: `Tarefa ${existingTask.id} atualizada` });
       }
     }
@@ -158,7 +161,7 @@ export function TaskModal() {
     setTags(tags.filter((t) => t !== tag));
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!commentText.trim() || !existingTask) return;
     const newComment = {
       id: `c-${Date.now()}`,
@@ -167,7 +170,7 @@ export function TaskModal() {
       content: commentText.trim(),
       createdAt: new Date(),
     };
-    updateTask(existingTask.id, {
+    const updated = await updateTask(existingTask.id, {
       comments: [...existingTask.comments, newComment],
       activityLog: [
         ...existingTask.activityLog,
@@ -176,17 +179,24 @@ export function TaskModal() {
           taskId: existingTask.id,
           userId: currentUser!.id,
           action: "commented",
-          details: "Comentario adicionado",
+          details: `comentou: "${commentText.trim()}"`,
           createdAt: new Date(),
         },
       ],
     });
+    if (!updated) return;
     setCommentText("");
     addToast({ type: "success", title: "Sucesso", message: "Comentario adicionado" });
   };
 
   const task = existingTask;
   const activityLog = task?.activityLog || [];
+  const resolveActorName = (userId: string) => {
+    const mockUser = getUserById(userId);
+    if (mockUser?.name) return mockUser.name;
+    if (currentUser?.id === userId) return currentUser.name;
+    return "Usuario";
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center" onClick={closeTaskModal}>
@@ -247,17 +257,18 @@ export function TaskModal() {
                   <div className="space-y-3 mb-4">
                     {activityLog.map((entry) => {
                       const user = getUserById(entry.userId);
+                      const actorName = resolveActorName(entry.userId);
                       return (
                         <div key={entry.id} className="flex items-start gap-2">
                           <img
-                            src={user?.avatar || ""}
-                            alt={user?.name || ""}
+                            src={user?.avatar || currentUser?.avatar || ""}
+                            alt={actorName}
                             className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                           />
                           <div className="flex-1 min-w-0">
-                            <span className="text-[13px] text-[#F0F0F0]">
-                              <span className="font-medium">{user?.name}</span>{" "}
-                              {entry.details}
+                            <span className="text-[13px] text-[#8A8A8A]">
+                              <span className="font-semibold text-[#F0F0F0]">{actorName}</span>{" "}
+                              <span className="text-[#8A8A8A]">{entry.details}</span>
                             </span>
                             <span className="text-[11px] text-[#5A5A5A] ml-2">
                               {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -279,12 +290,14 @@ export function TaskModal() {
                       type="text"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleAddComment();
+                      }}
                       placeholder="Adicionar comentario..."
                       className="flex-1 h-9 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
                     />
                     <button
-                      onClick={handleAddComment}
+                      onClick={() => void handleAddComment()}
                       disabled={!commentText.trim()}
                       className="w-9 h-9 flex items-center justify-center rounded-md bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
                     >
@@ -471,7 +484,7 @@ export function TaskModal() {
               Cancelar
             </button>
             <button
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               className="h-9 px-4 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-md hover:bg-[#F5D76A] transition-colors"
             >
               {taskModalMode === "create" ? "Criar Tarefa" : "Salvar"}

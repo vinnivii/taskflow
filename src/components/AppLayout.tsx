@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopHeader } from "./TopHeader";
 import { ToastContainer } from "./Toast";
@@ -12,7 +13,13 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title }: AppLayoutProps) {
   const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const fetchTasks = useStore((s) => s.fetchTasks);
   const location = useLocation();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void fetchTasks();
+  }, [isAuthenticated, fetchTasks]);
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace state={{ from: location }} />;

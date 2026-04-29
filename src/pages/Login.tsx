@@ -80,7 +80,7 @@ export function Login() {
 
     if (role) {
       const mockUser = {
-        id: `user_${role}`,
+        id: crypto.randomUUID(),
         name: roleDisplayNames[role],
         email: email,
         avatar: ``,
