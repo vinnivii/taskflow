@@ -63,6 +63,7 @@ type CommentRow = {
   task_id: string;
   user_id: string;
   content: string;
+  image_url: string | null;
   created_at: string;
 };
 
@@ -186,7 +187,7 @@ interface AppState {
 
   // Comments
   fetchComments: (taskId: string) => Promise<Comment[]>;
-  addComment: (taskId: string, content: string) => Promise<boolean>;
+  addComment: (taskId: string, content: string, imageUrl?: string | null) => Promise<boolean>;
 
   // Activity logs
   fetchActivityLog: (taskId: string) => Promise<ActivityEntry[]>;
@@ -711,6 +712,7 @@ export const useStore = create<AppState>((set, get) => {
       taskId: row.task_id,
       userId: row.user_id,
       content: row.content,
+      imageUrl: row.image_url,
       createdAt: new Date(row.created_at),
     }));
 
@@ -722,13 +724,13 @@ export const useStore = create<AppState>((set, get) => {
 
     return comments;
   },
-  addComment: async (taskId, content) => {
+  addComment: async (taskId, content, imageUrl) => {
     const currentUser = get().currentUser;
     if (!currentUser) return false;
 
     const { data, error } = await supabase
       .from("comments")
-      .insert({ task_id: taskId, user_id: currentUser.id, content })
+      .insert({ task_id: taskId, user_id: currentUser.id, content, image_url: imageUrl ?? null })
       .select("*")
       .single();
 
@@ -746,6 +748,7 @@ export const useStore = create<AppState>((set, get) => {
       taskId: (data as CommentRow).task_id,
       userId: (data as CommentRow).user_id,
       content: (data as CommentRow).content,
+      imageUrl: (data as CommentRow).image_url,
       createdAt: new Date((data as CommentRow).created_at),
     };
 

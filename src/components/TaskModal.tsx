@@ -10,11 +10,13 @@ import {
   Calendar,
   ChevronDown,
   Loader2,
+  ImageIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import { supabase } from "@/utils/supabase";
 
 import {
   priorityColors,
@@ -102,6 +104,11 @@ export function TaskModal() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [commentImage, setCommentImage] = useState<File | null>(null);
+  const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
+  const [commentImageLoading, setCommentImageLoading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const commentImageRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const savingRef = useRef(false);
@@ -222,30 +229,83 @@ export function TaskModal() {
     setTags(tags.filter((t) => t !== tag));
   };
 
+  const uploadCommentImage = async (file: File): Promise<string | null> => {
+    const ext = file.name.split(".").pop();
+    const path = `${existingTask!.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("comment-images").upload(path, file);
+    if (error) return null;
+    return supabase.storage.from("comment-images").getPublicUrl(path).data.publicUrl;
+  };
+
+  const handleSelectCommentImage = (file: File) => {
+    setCommentImage(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setCommentImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveCommentImage = () => {
+    setCommentImage(null);
+    setCommentImagePreview(null);
+    if (commentImageRef.current) commentImageRef.current.value = "";
+  };
+
   const handleAddComment = async () => {
-    if (!commentText.trim() || !existingTask) return;
-    const added = await addComment(existingTask.id, commentText.trim());
+    if (!commentText.trim() && !commentImage) return;
+    if (!existingTask) return;
+
+    setCommentImageLoading(true);
+    let imageUrl: string | null = null;
+    if (commentImage) {
+      imageUrl = await uploadCommentImage(commentImage);
+      if (!imageUrl) {
+        addToast({ type: "error", title: "Erro", message: "Falha ao enviar imagem." });
+        setCommentImageLoading(false);
+        return;
+      }
+    }
+
+    const added = await addComment(existingTask.id, commentText.trim(), imageUrl);
+    setCommentImageLoading(false);
     if (!added) return;
     await addActivityEntry(existingTask.id, {
       taskId: existingTask.id,
       userId: currentUser!.id,
       action: "commented",
-      details: `comentou: "${commentText.trim()}"`,
+      details: commentText.trim() ? `comentou: "${commentText.trim()}"` : "anexou uma imagem",
     });
     setCommentText("");
+    handleRemoveCommentImage();
     addToast({ type: "success", title: "Sucesso", message: "Comentario adicionado" });
   };
 
   const task = existingTask;
   const activityLog = task?.activityLog || [];
-  const sortedActivityLog = useMemo(() => {
-    const toMs = (value: unknown) => {
-      const d = value instanceof Date ? value : new Date(value as string);
-      const ms = d.getTime();
-      return Number.isFinite(ms) ? ms : 0;
-    };
-    return [...activityLog].sort((a, b) => toMs(b.createdAt) - toMs(a.createdAt));
-  }, [activityLog]);
+  const comments = task?.comments || [];
+
+  const toMs = (value: unknown) => {
+    const d = value instanceof Date ? value : new Date(value as string);
+    const ms = d.getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
+  // Merged feed: non-comment activity entries + comment objects
+  type FeedItem =
+    | { kind: "activity"; entry: (typeof activityLog)[number] }
+    | { kind: "comment"; comment: (typeof comments)[number] };
+
+  const feedItems = useMemo((): FeedItem[] => {
+    const acts: FeedItem[] = activityLog
+      .filter((e) => e.action !== "commented")
+      .map((e) => ({ kind: "activity" as const, entry: e }));
+    const cmts: FeedItem[] = comments.map((c) => ({ kind: "comment" as const, comment: c }));
+    return [...acts, ...cmts].sort((a, b) => {
+      const ta = a.kind === "activity" ? toMs(a.entry.createdAt) : toMs(a.comment.createdAt);
+      const tb = b.kind === "activity" ? toMs(b.entry.createdAt) : toMs(b.comment.createdAt);
+      return tb - ta;
+    });
+  }, [activityLog, comments]);
+
   const resolveActorName = (userId: string) => {
     const found = users.find((u) => u.id === userId);
     if (found?.name) return found.name;
@@ -264,6 +324,7 @@ export function TaskModal() {
   if (!taskModalOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-40 flex items-center justify-center" onClick={closeTaskModal}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
@@ -503,22 +564,45 @@ export function TaskModal() {
                       Atividade
                     </label>
                     <div className="space-y-3 mb-4 max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
-                      {sortedActivityLog.map((entry) => {
-                        const actorName = resolveActorName(entry.userId);
+                      {feedItems.map((item) => {
+                        const userId = item.kind === "activity" ? item.entry.userId : item.comment.userId;
+                        const actorName = resolveActorName(userId);
+                        const ts = item.kind === "activity" ? item.entry.createdAt : item.comment.createdAt;
                         return (
-                          <div key={entry.id} className="flex items-start gap-2.5">
+                          <div key={item.kind === "activity" ? item.entry.id : item.comment.id} className="flex items-start gap-2.5">
                             <img
-                              src={users.find((u) => u.id === entry.userId)?.avatar || currentUser?.avatar || ""}
+                              src={users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
                               alt={actorName}
                               className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                             />
                             <div className="flex-1 min-w-0">
-                              <span className="text-[13px]">
-                                <span className="font-semibold text-[var(--c-text-2)]">{actorName}</span>{" "}
-                                <span className="text-[var(--c-muted)]">{entry.details}</span>
-                              </span>
-                              <span className="text-[11px] text-[var(--c-muted-2)] ml-2">
-                                {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              {item.kind === "activity" ? (
+                                <span className="text-[13px]">
+                                  <span className="font-semibold text-[var(--c-text-2)]">{actorName}</span>{" "}
+                                  <span className="text-[var(--c-muted)]">{item.entry.details}</span>
+                                </span>
+                              ) : (
+                                <div>
+                                  <span className="font-semibold text-[13px] text-[var(--c-text-2)]">{actorName}</span>
+                                  {item.comment.content && (
+                                    <p className="text-[13px] text-[var(--c-text-2)] mt-0.5 leading-snug">{item.comment.content}</p>
+                                  )}
+                                  {item.comment.imageUrl && (
+                                    <button
+                                      onClick={() => setLightboxUrl(item.comment.imageUrl!)}
+                                      className="mt-1.5 block rounded-lg overflow-hidden border border-[var(--c-border)] hover:border-[var(--c-border-2)] transition-colors"
+                                    >
+                                      <img
+                                        src={item.comment.imageUrl}
+                                        alt="anexo"
+                                        className="max-h-[160px] max-w-full object-contain bg-[var(--c-surface-3)]"
+                                      />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              <span className="text-[11px] text-[var(--c-muted-2)] mt-0.5 block">
+                                {format(ts, "dd/MM/yyyy HH:mm", { locale: ptBR })}
                               </span>
                             </div>
                           </div>
@@ -526,29 +610,45 @@ export function TaskModal() {
                       })}
                     </div>
 
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={currentUser?.avatar}
-                        alt={currentUser?.name}
-                        className="w-7 h-7 rounded-full shrink-0"
-                      />
-                      <input
-                        type="text"
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void handleAddComment();
-                        }}
-                        placeholder="Adicionar comentário..."
-                        className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
-                      />
-                      <button
-                        onClick={() => void handleAddComment()}
-                        disabled={!commentText.trim()}
-                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
-                      >
-                        <Send size={15} />
-                      </button>
+                    {/* Comment input */}
+                    <div className="flex items-start gap-2.5">
+                      <img src={currentUser?.avatar} alt={currentUser?.name} className="w-7 h-7 rounded-full shrink-0 mt-1" />
+                      <div className="flex-1 min-w-0">
+                        {commentImagePreview && (
+                          <div className="mb-2 relative inline-flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--c-surface-3)] border border-[var(--c-border)]">
+                            <img src={commentImagePreview} alt="preview" className="w-10 h-10 rounded-md object-cover" />
+                            <span className="text-[11px] text-[var(--c-muted)] truncate max-w-[120px]">{commentImage?.name}</span>
+                            <button onClick={handleRemoveCommentImage} className="text-[var(--c-muted-2)] hover:text-[var(--c-text)] transition-colors ml-1">
+                              <X size={13} />
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleAddComment(); } }}
+                            placeholder="Adicionar comentário..."
+                            className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
+                          />
+                          <input ref={commentImageRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleSelectCommentImage(f); }} />
+                          <button
+                            onClick={() => commentImageRef.current?.click()}
+                            title="Anexar imagem"
+                            className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-colors ${commentImagePreview ? "border-[#F2C94C] text-[#F2C94C] bg-[rgba(242,201,76,0.1)]" : "border-[var(--c-border)] text-[var(--c-muted)] hover:text-[var(--c-text)] hover:border-[var(--c-border-2)] bg-[var(--c-surface-2)]"}`}
+                          >
+                            <ImageIcon size={15} />
+                          </button>
+                          <button
+                            onClick={() => void handleAddComment()}
+                            disabled={(!commentText.trim() && !commentImage) || commentImageLoading}
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
+                          >
+                            {commentImageLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={15} />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -641,61 +741,93 @@ export function TaskModal() {
 
           {/* Activity / Comments (edit mode only — view mode shows inline) */}
           {isEditing && task && (
-            <>
-              <div className="border-t border-[var(--c-border)] pt-5 mt-1">
-                <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase mb-3 block">
-                  Atividade
-                </label>
-                <div className="space-y-3 mb-4">
-                  {sortedActivityLog.map((entry) => {
-                    const actorName = resolveActorName(entry.userId);
-                    return (
-                      <div key={entry.id} className="flex items-start gap-2.5">
-                        <img
-                          src={users.find((u) => u.id === entry.userId)?.avatar || currentUser?.avatar || ""}
-                          alt={actorName}
-                          className="w-6 h-6 rounded-full shrink-0 mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
+            <div className="border-t border-[var(--c-border)] pt-5 mt-1">
+              <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase mb-3 block">
+                Atividade
+              </label>
+              <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto taskmodal-scroll pr-1">
+                {feedItems.map((item) => {
+                  const userId = item.kind === "activity" ? item.entry.userId : item.comment.userId;
+                  const actorName = resolveActorName(userId);
+                  const ts = item.kind === "activity" ? item.entry.createdAt : item.comment.createdAt;
+                  return (
+                    <div key={item.kind === "activity" ? item.entry.id : item.comment.id} className="flex items-start gap-2.5">
+                      <img
+                        src={users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
+                        alt={actorName}
+                        className="w-6 h-6 rounded-full shrink-0 mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        {item.kind === "activity" ? (
                           <span className="text-[13px]">
                             <span className="font-semibold text-[var(--c-text-2)]">{actorName}</span>{" "}
-                            <span className="text-[var(--c-muted)]">{entry.details}</span>
+                            <span className="text-[var(--c-muted)]">{item.entry.details}</span>
                           </span>
-                          <span className="text-[11px] text-[var(--c-muted-2)] ml-2">
-                            {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          </span>
-                        </div>
+                        ) : (
+                          <div>
+                            <span className="font-semibold text-[13px] text-[var(--c-text-2)]">{actorName}</span>
+                            {item.comment.content && (
+                              <p className="text-[13px] text-[var(--c-text-2)] mt-0.5 leading-snug">{item.comment.content}</p>
+                            )}
+                            {item.comment.imageUrl && (
+                              <button
+                                onClick={() => setLightboxUrl(item.comment.imageUrl!)}
+                                className="mt-1.5 block rounded-lg overflow-hidden border border-[var(--c-border)] hover:border-[var(--c-border-2)] transition-colors"
+                              >
+                                <img src={item.comment.imageUrl} alt="anexo" className="max-h-[120px] max-w-full object-contain bg-[var(--c-surface-3)]" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <span className="text-[11px] text-[var(--c-muted-2)] mt-0.5 block">
+                          {format(ts, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-                <div className="flex items-center gap-2.5">
-                  <img
-                    src={currentUser?.avatar}
-                    alt={currentUser?.name}
-                    className="w-7 h-7 rounded-full shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handleAddComment();
-                    }}
-                    placeholder="Adicionar comentário..."
-                    className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
-                  />
-                  <button
-                    onClick={() => void handleAddComment()}
-                    disabled={!commentText.trim()}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
-                  >
-                    <Send size={15} />
-                  </button>
+              {/* Comment input */}
+              <div className="flex items-start gap-2.5">
+                <img src={currentUser?.avatar} alt={currentUser?.name} className="w-7 h-7 rounded-full shrink-0 mt-1" />
+                <div className="flex-1 min-w-0">
+                  {commentImagePreview && (
+                    <div className="mb-2 relative inline-flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--c-surface-3)] border border-[var(--c-border)]">
+                      <img src={commentImagePreview} alt="preview" className="w-10 h-10 rounded-md object-cover" />
+                      <span className="text-[11px] text-[var(--c-muted)] truncate max-w-[120px]">{commentImage?.name}</span>
+                      <button onClick={handleRemoveCommentImage} className="text-[var(--c-muted-2)] hover:text-[var(--c-text)] transition-colors ml-1">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleAddComment(); } }}
+                      placeholder="Adicionar comentário..."
+                      className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
+                    />
+                    <button
+                      onClick={() => commentImageRef.current?.click()}
+                      title="Anexar imagem"
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-colors ${commentImagePreview ? "border-[#F2C94C] text-[#F2C94C] bg-[rgba(242,201,76,0.1)]" : "border-[var(--c-border)] text-[var(--c-muted)] hover:text-[var(--c-text)] hover:border-[var(--c-border-2)] bg-[var(--c-surface-2)]"}`}
+                    >
+                      <ImageIcon size={15} />
+                    </button>
+                    <button
+                      onClick={() => void handleAddComment()}
+                      disabled={(!commentText.trim() && !commentImage) || commentImageLoading}
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
+                    >
+                      {commentImageLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={15} />}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -748,5 +880,27 @@ export function TaskModal() {
         )}
       </div>
     </div>
+
+    {/* Lightbox */}
+    {lightboxUrl && (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+        onClick={() => setLightboxUrl(null)}
+      >
+        <button
+          onClick={() => setLightboxUrl(null)}
+          className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+        >
+          <X size={18} />
+        </button>
+        <img
+          src={lightboxUrl ?? undefined}
+          alt="imagem ampliada"
+          className="max-w-[90vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    )}
+  </>
   );
 }

@@ -32,6 +32,7 @@ export interface Comment {
   taskId: string;
   userId: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: Date;
 }
 
