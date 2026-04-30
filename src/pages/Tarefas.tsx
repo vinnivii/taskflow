@@ -297,13 +297,13 @@ export function Tarefas() {
                                   setSelectedTaskId(task.id);
                                   setUnarchiveDialogOpen(true);
                                 }}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[#2A2A2A] text-[#8A8A8A] hover:text-[#F0F0F0] hover:bg-[#333333] transition-colors"
+                                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[var(--c-surface-3)] text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors"
                                 title="Clique para desarquivar"
                               >
                                 Arquivada
                               </button>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[#2A2A2A] text-[#8A8A8A]">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[var(--c-surface-3)] text-[var(--c-muted)]">
                                 Arquivada
                               </span>
                             )

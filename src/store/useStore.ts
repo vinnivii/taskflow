@@ -14,6 +14,24 @@ import type {
 } from "@/types";
 import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { generateAvatar } from "@/utils/avatar";
+import { statusDisplayNames } from "@/types";
+
+async function createNotification(
+  userId: string,
+  title: string,
+  message: string,
+  type: Notification["type"],
+  taskId: string
+) {
+  await supabase.from("notifications").insert({
+    user_id: userId,
+    title,
+    message,
+    type,
+    task_id: taskId,
+    is_read: false,
+  });
+}
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -346,6 +364,39 @@ export const useStore = create<AppState>((set, get) => {
       )
       .subscribe();
 
+    const currentUserId = get().currentUser?.id;
+    if (currentUserId) {
+      supabase
+        .channel("notifications-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          (payload) => {
+            const row = payload.new as NotificationRow;
+            const notification: Notification = {
+              id: row.id,
+              userId: row.user_id,
+              title: row.title,
+              message: row.message,
+              read: row.is_read,
+              type: row.type,
+              taskId: row.task_id,
+              createdAt: new Date(row.created_at),
+            };
+            set((state) => ({
+              notifications: [notification, ...state.notifications],
+              unreadCount: state.unreadCount + 1,
+            }));
+          }
+        )
+        .subscribe();
+    }
+
     set({ _realtimeChannel: channel });
   },
   unsubscribeRealtime: () => {
@@ -452,10 +503,26 @@ export const useStore = create<AppState>((set, get) => {
       return false;
     }
 
-    set((state) => ({ tasks: [toTask(data as TaskRow), ...state.tasks] }));
+    const newTask = toTask(data as TaskRow);
+    set((state) => ({ tasks: [newTask, ...state.tasks] }));
+
+    const currentUserId = get().currentUser?.id;
+    if (newTask.assigneeId && newTask.assigneeId !== currentUserId) {
+      void createNotification(
+        newTask.assigneeId,
+        "Nova tarefa atribuída",
+        `Você foi atribuído à tarefa "${newTask.title}"`,
+        "task_assigned",
+        newTask.id
+      );
+    }
+
     return true;
   },
   updateTask: async (taskId, updates) => {
+    const currentUserId = get().currentUser?.id;
+    const prev = get().tasks.find((t) => t.id === taskId);
+
     const { data, error } = await supabase
       .from("tasks")
       .update(toTaskUpdate(updates))
@@ -480,6 +547,38 @@ export const useStore = create<AppState>((set, get) => {
           : task
       ),
     }));
+
+    if (prev) {
+      if (
+        updates.assigneeId !== undefined &&
+        updates.assigneeId !== prev.assigneeId &&
+        updates.assigneeId &&
+        updates.assigneeId !== currentUserId
+      ) {
+        void createNotification(
+          updates.assigneeId,
+          "Nova tarefa atribuída",
+          `Você foi atribuído à tarefa "${prev.title}"`,
+          "task_assigned",
+          taskId
+        );
+      }
+      if (
+        updates.status !== undefined &&
+        updates.status !== prev.status &&
+        prev.assigneeId &&
+        prev.assigneeId !== currentUserId
+      ) {
+        void createNotification(
+          prev.assigneeId,
+          "Status atualizado",
+          `"${prev.title}" foi movida para ${statusDisplayNames[updates.status]}`,
+          "status_changed",
+          taskId
+        );
+      }
+    }
+
     return true;
   },
   deleteTask: async (taskId) => {
@@ -498,6 +597,9 @@ export const useStore = create<AppState>((set, get) => {
     return true;
   },
   moveTask: async (taskId, newStatus) => {
+    const currentUserId = get().currentUser?.id;
+    const prev = get().tasks.find((t) => t.id === taskId);
+
     const { data, error } = await supabase
       .from("tasks")
       .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -522,6 +624,17 @@ export const useStore = create<AppState>((set, get) => {
           : task
       ),
     }));
+
+    if (prev && prev.assigneeId && prev.assigneeId !== currentUserId && prev.status !== newStatus) {
+      void createNotification(
+        prev.assigneeId,
+        "Status atualizado",
+        `"${prev.title}" foi movida para ${statusDisplayNames[newStatus]}`,
+        "status_changed",
+        taskId
+      );
+    }
+
     return true;
   },
 

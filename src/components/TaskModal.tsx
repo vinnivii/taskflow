@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   X,
   Send,
@@ -9,6 +9,7 @@ import {
   Plus,
   Calendar,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -55,7 +56,7 @@ const deptBg: Record<Department, string> = {
 
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="py-2.5 border-b border-[#1A1A1A] last:border-0">
+    <div className="py-2.5 border-b border-[var(--c-border)] last:border-0">
       <span className="text-[9px] font-semibold tracking-[1px] text-[var(--c-muted-3)] uppercase block mb-1.5">{label}</span>
       {children}
     </div>
@@ -101,6 +102,9 @@ export function TaskModal() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (taskModalTaskId && taskModalMode !== "create") {
@@ -137,10 +141,14 @@ export function TaskModal() {
       perms.canEditTask(existingTask.creatorId, existingTask.assigneeId));
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!title.trim()) {
       addToast({ type: "error", title: "Erro", message: "Informe um titulo para a tarefa" });
       return;
     }
+
+    savingRef.current = true;
+    setSaving(true);
 
     if (taskModalMode === "create") {
       const newTaskId = crypto.randomUUID();
@@ -163,7 +171,7 @@ export function TaskModal() {
         updatedAt: new Date(),
       };
       const created = await addTask(newTask);
-      if (!created) return;
+      if (!created) { savingRef.current = false; setSaving(false); return; }
       await addActivityEntry(newTaskId, {
         taskId: newTaskId,
         userId: currentUser!.id,
@@ -185,7 +193,7 @@ export function TaskModal() {
 
       if (Object.keys(updates).length > 0) {
         const updated = await updateTask(existingTask.id, updates);
-        if (!updated) return;
+        if (!updated) { savingRef.current = false; setSaving(false); return; }
         if (statusChanged) {
           await addActivityEntry(existingTask.id, {
             taskId: existingTask.id,
@@ -198,6 +206,8 @@ export function TaskModal() {
       }
     }
 
+    savingRef.current = false;
+    setSaving(false);
     closeTaskModal();
   };
 
@@ -268,10 +278,10 @@ export function TaskModal() {
             to   { opacity: 1; transform: scale(1)    translateY(0);   }
           }
 
-          /* Minimal dark scrollbars (TaskModal only) */
+          /* Minimal scrollbars (TaskModal only) */
           .taskmodal-scroll {
             scrollbar-width: thin;
-            scrollbar-color: #111 transparent;
+            scrollbar-color: var(--c-border-2) transparent;
           }
           .taskmodal-scroll::-webkit-scrollbar {
             width: 6px;
@@ -281,11 +291,11 @@ export function TaskModal() {
             background: transparent;
           }
           .taskmodal-scroll::-webkit-scrollbar-thumb {
-            background: #111;
+            background: var(--c-border-2);
             border-radius: 999px;
           }
           .taskmodal-scroll::-webkit-scrollbar-thumb:hover {
-            background: #1f1f1f;
+            background: var(--c-muted-3);
           }
         `}</style>
 
@@ -304,7 +314,7 @@ export function TaskModal() {
           </div>
           <button
             onClick={closeTaskModal}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#5A5A5A] hover:text-[var(--c-text)] hover:bg-[var(--c-surface-3)] transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface-3)] transition-colors"
           >
             <X size={17} />
           </button>
@@ -319,7 +329,7 @@ export function TaskModal() {
             onChange={(e) => setTitle(e.target.value)}
             disabled={!canEdit}
             placeholder="Titulo da tarefa..."
-            className="w-full bg-transparent text-[22px] font-semibold text-[var(--c-text)] tracking-[-0.6px] leading-snug outline-none placeholder:text-[#333] border-b border-transparent focus:border-[var(--c-border)] disabled:cursor-default pb-2 mb-5 transition-colors"
+            className="w-full bg-transparent text-[22px] font-semibold text-[var(--c-text)] tracking-[-0.6px] leading-snug outline-none placeholder:text-[var(--c-muted-3)] border-b border-transparent focus:border-[var(--c-border)] disabled:cursor-default pb-2 mb-5 transition-colors"
           />
 
           {isEditing && canEdit ? (
@@ -348,8 +358,8 @@ export function TaskModal() {
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
                         style={{
                           background: priority === p ? priorityBg[p] : "transparent",
-                          color: priority === p ? priorityColors[p] : "#555",
-                          border: `1.5px solid ${priority === p ? priorityColors[p] + "60" : "#242424"}`,
+                          color: priority === p ? priorityColors[p] : "var(--c-muted)",
+                          border: `1.5px solid ${priority === p ? priorityColors[p] + "60" : "var(--c-border)"}`,
                         }}
                       >
                         {priorityIcons[p]}
@@ -370,8 +380,8 @@ export function TaskModal() {
                         className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
                         style={{
                           background: status === s ? statusBg[s] : "transparent",
-                          color: status === s ? statusColors[s] : "#555",
-                          border: `1.5px solid ${status === s ? statusColors[s] + "60" : "#242424"}`,
+                          color: status === s ? statusColors[s] : "var(--c-muted)",
+                          border: `1.5px solid ${status === s ? statusColors[s] + "60" : "var(--c-border)"}`,
                         }}
                       >
                         {statusDisplayNames[s]}
@@ -431,8 +441,8 @@ export function TaskModal() {
                         className="inline-flex items-center px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
                         style={{
                           background: department === d ? deptBg[d] : "transparent",
-                          color: department === d ? departmentColors[d] : "#555",
-                          border: `1.5px solid ${department === d ? departmentColors[d] + "60" : "#242424"}`,
+                          color: department === d ? departmentColors[d] : "var(--c-muted)",
+                          border: `1.5px solid ${department === d ? departmentColors[d] + "60" : "var(--c-border)"}`,
                         }}
                       >
                         {departmentDisplayNames[d]}
@@ -465,7 +475,7 @@ export function TaskModal() {
                     />
                     <button
                       onClick={handleAddTag}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-[var(--c-surface-4)] text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[#2A2A2A] transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-[var(--c-surface-4)] text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors"
                     >
                       <Plus size={13} />
                     </button>
@@ -481,15 +491,15 @@ export function TaskModal() {
                 {/* Description */}
                 {task?.description && (
                   <div className="mb-5">
-                    <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-2">Descrição</span>
+                    <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-2">Descrição</span>
                     <p className="text-[14px] text-[var(--c-text-2)] leading-relaxed whitespace-pre-wrap">{task.description}</p>
                   </div>
                 )}
 
                 {/* Activity / Comments */}
                 {task && (
-                  <div className="border-t border-[#1E1E1E] pt-4">
-                    <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
+                  <div className="border-t border-[var(--c-border)] pt-4">
+                    <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase mb-3 block">
                       Atividade
                     </label>
                     <div className="space-y-3 mb-4 max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
@@ -504,10 +514,10 @@ export function TaskModal() {
                             />
                             <div className="flex-1 min-w-0">
                               <span className="text-[13px]">
-                                <span className="font-semibold text-[#E0E0E0]">{actorName}</span>{" "}
-                                <span className="text-[#666]">{entry.details}</span>
+                                <span className="font-semibold text-[var(--c-text-2)]">{actorName}</span>{" "}
+                                <span className="text-[var(--c-muted)]">{entry.details}</span>
                               </span>
-                              <span className="text-[11px] text-[#444] ml-2">
+                              <span className="text-[11px] text-[var(--c-muted-2)] ml-2">
                                 {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
                               </span>
                             </div>
@@ -530,7 +540,7 @@ export function TaskModal() {
                           if (e.key === "Enter") void handleAddComment();
                         }}
                         placeholder="Adicionar comentário..."
-                        className="flex-1 h-9 bg-[#1A1A1A] border border-[#242424] rounded-xl px-3.5 text-[13px] text-[#E0E0E0] placeholder:text-[#444] outline-none focus:border-[#333] transition-colors"
+                        className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
                       />
                       <button
                         onClick={() => void handleAddComment()}
@@ -548,7 +558,7 @@ export function TaskModal() {
               <div className="w-[220px] shrink-0 space-y-3">
                 {/* Priority badge */}
                 <div>
-                  <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Prioridade</span>
+                  <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Prioridade</span>
                   <span
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-semibold"
                     style={{ background: priorityBg[priority], color: priorityColors[priority] }}
@@ -559,7 +569,7 @@ export function TaskModal() {
                 </div>
                 {/* Status badge */}
                 <div>
-                  <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Status</span>
+                  <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Status</span>
                   <span
                     className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
                     style={{ background: statusBg[status], color: statusColors[status] }}
@@ -591,7 +601,7 @@ export function TaskModal() {
                 </MetaRow>
                 {/* Department badge */}
                 <div>
-                  <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Setor</span>
+                  <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Setor</span>
                   <span
                     className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
                     style={{ background: deptBg[department], color: departmentColors[department] }}
@@ -615,12 +625,12 @@ export function TaskModal() {
                 {/* Timestamps */}
                 {task && (
                   <div className="pt-3 mt-2 border-t border-[var(--c-border)] space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#3A3A3A]">
-                      <span className="text-[#2A2A2A] uppercase tracking-wider text-[9px] font-semibold">Criado</span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[var(--c-muted-2)]">
+                      <span className="text-[var(--c-muted-3)] uppercase tracking-wider text-[9px] font-semibold">Criado</span>
                       <span>{format(task.createdAt, "dd/MM/yy HH:mm", { locale: ptBR })}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#3A3A3A]">
-                      <span className="text-[#2A2A2A] uppercase tracking-wider text-[9px] font-semibold">Editado</span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[var(--c-muted-2)]">
+                      <span className="text-[var(--c-muted-3)] uppercase tracking-wider text-[9px] font-semibold">Editado</span>
                       <span>{format(task.updatedAt, "dd/MM/yy HH:mm", { locale: ptBR })}</span>
                     </div>
                   </div>
@@ -632,8 +642,8 @@ export function TaskModal() {
           {/* Activity / Comments (edit mode only — view mode shows inline) */}
           {isEditing && task && (
             <>
-              <div className="border-t border-[#1E1E1E] pt-5 mt-1">
-                <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
+              <div className="border-t border-[var(--c-border)] pt-5 mt-1">
+                <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase mb-3 block">
                   Atividade
                 </label>
                 <div className="space-y-3 mb-4">
@@ -648,10 +658,10 @@ export function TaskModal() {
                         />
                         <div className="flex-1 min-w-0">
                           <span className="text-[13px]">
-                            <span className="font-semibold text-[#E0E0E0]">{actorName}</span>{" "}
-                            <span className="text-[#666]">{entry.details}</span>
+                            <span className="font-semibold text-[var(--c-text-2)]">{actorName}</span>{" "}
+                            <span className="text-[var(--c-muted)]">{entry.details}</span>
                           </span>
-                          <span className="text-[11px] text-[#444] ml-2">
+                          <span className="text-[11px] text-[var(--c-muted-2)] ml-2">
                             {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
                           </span>
                         </div>
@@ -674,7 +684,7 @@ export function TaskModal() {
                       if (e.key === "Enter") void handleAddComment();
                     }}
                     placeholder="Adicionar comentário..."
-                    className="flex-1 h-9 bg-[#1A1A1A] border border-[#242424] rounded-xl px-3.5 text-[13px] text-[#E0E0E0] placeholder:text-[#444] outline-none focus:border-[#333] transition-colors"
+                    className="flex-1 h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl px-3.5 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
                   />
                   <button
                     onClick={() => void handleAddComment()}
@@ -705,8 +715,12 @@ export function TaskModal() {
               perms.canArchiveTask() && (
                 <button
                   type="button"
+                  disabled={archiving || saving}
                   onClick={async () => {
+                    if (archiving || saving) return;
+                    setArchiving(true);
                     const ok = await archiveTask(task.id);
+                    setArchiving(false);
                     if (!ok) return;
                     addToast({
                       type: "success",
@@ -715,16 +729,19 @@ export function TaskModal() {
                     });
                     closeTaskModal();
                   }}
-                  className="h-9 px-5 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] text-[#F2C94C] text-[13px] font-semibold hover:bg-[#222] transition-colors"
+                  className="h-9 px-5 rounded-lg bg-[var(--c-surface-2)] border border-[var(--c-border)] text-[#F2C94C] text-[13px] font-semibold hover:bg-[var(--c-surface-3)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   title="Arquivar (oculta do quadro)"
                 >
+                  {archiving ? <Loader2 size={14} className="animate-spin" /> : null}
                   Arquivar
                 </button>
               )}
             <button
+              disabled={saving || archiving}
               onClick={() => void handleSave()}
-              className="h-9 px-5 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-lg hover:bg-[#F5D76A] transition-colors shadow-[0_0_16px_rgba(242,201,76,0.25)] hover:shadow-[0_0_24px_rgba(242,201,76,0.4)]"
+              className="h-9 px-5 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-lg hover:bg-[#F5D76A] transition-colors shadow-[0_0_16px_rgba(242,201,76,0.25)] hover:shadow-[0_0_24px_rgba(242,201,76,0.4)] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
             >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : null}
               {taskModalMode === "create" ? "Criar Tarefa →" : "Salvar alterações"}
             </button>
           </div>

@@ -60,19 +60,19 @@
     --input: 0 0% 94%;
 
     /* Theme color tokens — light */
-    --c-page:      #F0F2F5;
+    --c-page:      #E8EAED;
     --c-surface:   #FFFFFF;
-    --c-surface-2: #F7F7F8;
-    --c-surface-3: #EEEFF1;
-    --c-surface-4: #E8E9EB;
-    --c-hover:     #E2E3E6;
-    --c-border:    #DDDEE1;
-    --c-border-2:  #C8C9CC;
-    --c-text:      #111111;
-    --c-text-2:    #222222;
-    --c-muted:     #6B7280;
-    --c-muted-2:   #9CA3AF;
-    --c-muted-3:   #D1D5DB;
+    --c-surface-2: #F4F5F7;
+    --c-surface-3: #ECEEF2;
+    --c-surface-4: #E4E6EA;
+    --c-hover:     #DDE0E6;
+    --c-border:    #D0D3DA;
+    --c-border-2:  #B8BBC4;
+    --c-text:      #0D0F12;
+    --c-text-2:    #1E2128;
+    --c-muted:     #5A6070;
+    --c-muted-2:   #8B929E;
+    --c-muted-3:   #B8BCC6;
   }
 
   * {
