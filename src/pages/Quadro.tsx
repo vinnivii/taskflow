@@ -164,10 +164,10 @@ export function Quadro() {
         {/* Page header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px]">
+            <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
               Quadro
             </h1>
-            <span className="text-[13px] text-[#8A8A8A]">
+            <span className="text-[13px] text-[var(--c-muted)]">
               ({totalTasks} {totalTasks === 1 ? "tarefa" : "tarefas"})
             </span>
           </div>

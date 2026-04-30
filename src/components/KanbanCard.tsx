@@ -48,7 +48,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
       onClick={() => openTaskModal("view", task.id)}
       className="group cursor-pointer pb-0.5"
     >
-      <div className="relative overflow-hidden bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-4 shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-all duration-[250ms] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:-translate-y-0.5 group-hover:border-[var(--c-border-2)]"
+      <div className="kanban-card-inner relative overflow-hidden bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-4 shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-all duration-[250ms] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:-translate-y-0.5 group-hover:border-[var(--c-border-2)]"
       >
       {/* Priority left border */}
       <div

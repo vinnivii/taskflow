@@ -134,7 +134,7 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className="flex flex-col h-screen bg-[var(--c-surface)] border-r border-[var(--c-border)] transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] shrink-0"
+        className="sidebar-light flex flex-col h-screen bg-[var(--c-surface)] border-r border-[var(--c-border)] transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] shrink-0"
         style={{ width: expanded ? 220 : 64 }}
       >
         {/* Logo */}

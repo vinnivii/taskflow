@@ -44,35 +44,35 @@
   }
 
   :root.light {
-    --background: 0 0% 97%;
-    --foreground: 0 0% 7%;
+    --background: 210 17% 98%;
+    --foreground: 222 47% 7%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 7%;
+    --card-foreground: 222 47% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 7%;
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 0 0% 7%;
-    --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 0% 90%;
-    --accent-foreground: 0 0% 7%;
-    --border: 0 0% 87%;
-    --input: 0 0% 94%;
+    --popover-foreground: 222 47% 7%;
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 222 47% 7%;
+    --muted: 210 17% 95%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 210 17% 92%;
+    --accent-foreground: 222 47% 7%;
+    --border: 215 20% 83%;
+    --input: 215 20% 94%;
 
     /* Theme color tokens — light */
-    --c-page:      #E8EAED;
+    --c-page:      #F0F2F5;
     --c-surface:   #FFFFFF;
-    --c-surface-2: #F4F5F7;
-    --c-surface-3: #ECEEF2;
-    --c-surface-4: #E4E6EA;
-    --c-hover:     #DDE0E6;
-    --c-border:    #D0D3DA;
-    --c-border-2:  #B8BBC4;
-    --c-text:      #0D0F12;
-    --c-text-2:    #1E2128;
-    --c-muted:     #5A6070;
-    --c-muted-2:   #8B929E;
-    --c-muted-3:   #B8BCC6;
+    --c-surface-2: #F6F8FA;
+    --c-surface-3: #EEF1F5;
+    --c-surface-4: #E3E8EF;
+    --c-hover:     #E8ECF1;
+    --c-border:    #D1D9E0;
+    --c-border-2:  #A8B3BE;
+    --c-text:      #0B0F14;
+    --c-text-2:    #1F2937;
+    --c-muted:     #5C6977;
+    --c-muted-2:   #8C9BAA;
+    --c-muted-3:   #C4CDD6;
   }
 
   * {
@@ -127,6 +127,20 @@
   }
   .custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
     background: var(--c-border-2);
+  }
+
+  /* Light mode elevation — cards, sidebar, header */
+  :root.light .kanban-card-inner {
+    box-shadow: 0 1px 3px rgba(11,15,20,0.08), 0 1px 2px rgba(11,15,20,0.04);
+  }
+  :root.light .kanban-card-inner:hover {
+    box-shadow: 0 4px 14px rgba(11,15,20,0.11), 0 2px 4px rgba(11,15,20,0.06);
+  }
+  :root.light .sidebar-light {
+    box-shadow: 2px 0 8px rgba(11,15,20,0.05);
+  }
+  :root.light .header-light {
+    box-shadow: 0 1px 4px rgba(11,15,20,0.06);
   }
 
   /* Shake animation */

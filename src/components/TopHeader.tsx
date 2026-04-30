@@ -26,7 +26,7 @@ export function TopHeader({ title }: TopHeaderProps) {
   if (!currentUser) return null;
 
   return (
-    <header className="h-16 bg-[var(--c-surface)] border-b border-[var(--c-border)] flex items-center justify-between px-6 shrink-0">
+    <header className="header-light h-16 bg-[var(--c-surface)] border-b border-[var(--c-border)] flex items-center justify-between px-6 shrink-0">
       {/* Left: Page title */}
       <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px] leading-[30px]">
         {title}
@@ -95,30 +95,42 @@ export function TopHeader({ title }: TopHeaderProps) {
           {notifOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
-              <div className="absolute right-0 top-12 w-80 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.4)] z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-[var(--c-border)]">
-                  <span className="text-[var(--c-text)] text-[13px] font-semibold">Notificacoes</span>
+              <div className="absolute right-0 top-12 w-80 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.15)] z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-[var(--c-border)] flex items-center justify-between">
+                  <span className="text-[var(--c-text)] text-[13px] font-semibold">Notificações</span>
+                  {unreadCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#EF4444]/10 text-[#EF4444]">
+                      {unreadCount} nova{unreadCount > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </div>
                 {notifications.length === 0 ? (
                   <div className="px-4 py-6 text-center text-[var(--c-muted-2)] text-[13px]">
-                    Sem notificacoes
+                    Sem notificações
                   </div>
                 ) : (
-                  notifications.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => {
-                        markNotificationRead(n.id);
-                        setNotifOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-3 border-b border-[var(--c-border)] hover:bg-[var(--c-surface-3)] transition-colors ${
-                        !n.read ? "bg-[rgba(242,201,76,0.04)]" : ""
-                      }`}
-                    >
-                      <div className="text-[var(--c-text)] text-[13px] font-medium">{n.title}</div>
-                      <div className="text-[var(--c-muted)] text-[12px] mt-0.5">{n.message}</div>
-                    </button>
-                  ))
+                  <div className="max-h-[360px] overflow-y-auto">
+                    {notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          markNotificationRead(n.id);
+                          setNotifOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 border-b border-[var(--c-border)] hover:bg-[var(--c-hover)] transition-colors flex items-start gap-2.5 ${
+                          !n.read ? "bg-[var(--c-surface-2)]" : "bg-[var(--c-surface)]"
+                        }`}
+                      >
+                        {!n.read && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F2C94C] shrink-0 mt-1.5" />
+                        )}
+                        <div className={!n.read ? "" : "pl-4"}>
+                          <div className="text-[var(--c-text)] text-[13px] font-medium leading-snug">{n.title}</div>
+                          <div className="text-[var(--c-muted)] text-[12px] mt-0.5 leading-snug">{n.message}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </>
