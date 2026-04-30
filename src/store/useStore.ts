@@ -11,7 +11,7 @@ import type {
   TaskPriority,
   Department,
 } from "@/types";
-import { supabase } from "@/utils/supabase";
+import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { generateAvatar } from "@/utils/avatar";
 
 const UUID_REGEX =
@@ -132,6 +132,13 @@ interface AppState {
   // Users
   users: User[];
   fetchUsers: () => Promise<void>;
+  createMember: (data: {
+    name: string;
+    email: string;
+    password: string;
+    role: User["role"];
+    department: User["department"];
+  }) => Promise<{ success: boolean; error?: string }>;
 
   // Tasks
   tasks: Task[];
@@ -288,6 +295,44 @@ export const useStore = create<AppState>((set, get) => {
     }));
 
     set({ users });
+  },
+  createMember: async ({ name, email, password, role, department }) => {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name },
+    });
+
+    if (authError || !authData.user) {
+      return { success: false, error: authError?.message ?? "Erro ao criar usuário" };
+    }
+
+    const { error: profileError } = await supabaseAdmin.from("users").upsert({
+      id: authData.user.id,
+      name,
+      email,
+      avatar: "",
+      role,
+      department,
+    });
+
+    if (profileError) {
+      return { success: false, error: profileError.message };
+    }
+
+    const newUser: User = {
+      id: authData.user.id,
+      name,
+      email,
+      avatar: generateAvatar(name),
+      role,
+      department,
+      createdAt: new Date(),
+    };
+
+    set((state) => ({ users: [...state.users, newUser].sort((a, b) => a.name.localeCompare(b.name)) }));
+    return { success: true };
   },
 
   // Tasks

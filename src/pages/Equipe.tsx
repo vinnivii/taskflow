@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Users, Plus, X } from "lucide-react";
+import { Users, Plus, X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -8,6 +8,7 @@ import {
   roleDisplayNames,
   departmentDisplayNames,
   departmentColors,
+  roleDepartmentMap,
 } from "@/types";
 import type { User, UserRole, Department } from "@/types";
 
@@ -19,8 +20,51 @@ export function Equipe() {
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "all">("all");
   const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all");
+  const createMember = useStore((s) => s.createMember);
+  const addToast = useStore((s) => s.addToast);
+
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+
+  // Create member form
+  const [formName, setFormName]           = useState("");
+  const [formEmail, setFormEmail]         = useState("");
+  const [formPassword, setFormPassword]   = useState("");
+  const [formRole, setFormRole]           = useState<UserRole>("tecnico");
+  const [showFormPw, setShowFormPw]       = useState(false);
+  const [formLoading, setFormLoading]     = useState(false);
+  const [formError, setFormError]         = useState("");
+
+  const handleCloseModal = () => {
+    setShowInviteModal(false);
+    setFormName(""); setFormEmail(""); setFormPassword("");
+    setFormRole("tecnico"); setFormError(""); setShowFormPw(false);
+  };
+
+  const handleCreateMember = async () => {
+    setFormError("");
+    if (!formName.trim())           { setFormError("Informe o nome.");              return; }
+    if (!formEmail.trim())          { setFormError("Informe o e-mail.");            return; }
+    if (formPassword.length < 6)    { setFormError("Senha mínima de 6 caracteres."); return; }
+
+    setFormLoading(true);
+    const result = await createMember({
+      name: formName.trim(),
+      email: formEmail.trim(),
+      password: formPassword,
+      role: formRole,
+      department: roleDepartmentMap[formRole],
+    });
+    setFormLoading(false);
+
+    if (!result.success) {
+      setFormError(result.error ?? "Erro ao criar membro.");
+      return;
+    }
+
+    addToast({ type: "success", title: "Membro criado", message: `${formName.trim()} foi adicionado ao sistema.` });
+    handleCloseModal();
+  };
 
   // Filter members
   const filteredMembers = useMemo(() => {
@@ -85,7 +129,7 @@ export function Equipe() {
             className="flex items-center gap-2 h-9 px-4 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-md hover:bg-[#F5D76A] transition-all hover:-translate-y-px"
           >
             <Plus size={16} />
-            Convidar membro
+            Criar membro
           </button>
         )}
       </div>
@@ -331,11 +375,11 @@ export function Equipe() {
         </div>
       )}
 
-      {/* Invite Modal */}
+      {/* Create Member Modal */}
       {showInviteModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={() => setShowInviteModal(false)}
+          onClick={handleCloseModal}
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
@@ -343,42 +387,84 @@ export function Equipe() {
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setShowInviteModal(false)}
+              onClick={handleCloseModal}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[#5A5A5A] hover:text-[#F0F0F0] hover:bg-[#262626]"
             >
               <X size={18} />
             </button>
 
-            <h2 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px] mb-6">
-              Convidar membro
+            <h2 className="text-[20px] font-semibold text-[#F0F0F0] tracking-[-0.6px] mb-5">
+              Criar membro
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {formError && (
+                <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-md px-3 py-2">
+                  <p className="text-[#EF4444] text-[12px]">{formError}</p>
+                </div>
+              )}
+
+              {/* Nome */}
               <div>
-                <label className="text-[11px] font-medium tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
-                  Nome
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                  Nome completo
                 </label>
                 <input
                   type="text"
-                  placeholder="Nome completo"
-                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                  value={formName}
+                  onChange={(e) => { setFormName(e.target.value); setFormError(""); }}
+                  placeholder="Ex: João Silva"
+                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
                 />
               </div>
+
+              {/* E-mail */}
               <div>
-                <label className="text-[11px] font-medium tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
                   E-mail
                 </label>
                 <input
                   type="email"
-                  placeholder="email@Softcom.com"
-                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                  value={formEmail}
+                  onChange={(e) => { setFormEmail(e.target.value); setFormError(""); }}
+                  placeholder="email@softcom.com"
+                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
                 />
               </div>
+
+              {/* Senha */}
               <div>
-                <label className="text-[11px] font-medium tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                  Senha inicial
+                </label>
+                <div className="relative">
+                  <input
+                    type={showFormPw ? "text" : "password"}
+                    value={formPassword}
+                    onChange={(e) => { setFormPassword(e.target.value); setFormError(""); }}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 pr-10 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFormPw(!showFormPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5A5A5A] hover:text-[#F0F0F0] transition-colors"
+                  >
+                    {showFormPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Cargo */}
+              <div>
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
                   Cargo
                 </label>
-                <select className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[14px] text-[#F0F0F0] outline-none focus:border-[#3A3A3A]">
+                <select
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as UserRole)}
+                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] outline-none focus:border-[#3A3A3A] cursor-pointer"
+                >
                   {roleOptions
                     .filter((r) => r.value !== "all")
                     .map((r) => (
@@ -388,18 +474,25 @@ export function Equipe() {
                     ))}
                 </select>
               </div>
+
+              {/* Departamento (auto) */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-[#1A1A1A] rounded-md border border-[#2A2A2A]">
+                <span className="text-[11px] text-[#5A5A5A]">Departamento:</span>
+                <span
+                  className="text-[11px] font-semibold"
+                  style={{ color: departmentColors[roleDepartmentMap[formRole]] }}
+                >
+                  {departmentDisplayNames[roleDepartmentMap[formRole]]}
+                </span>
+                <span className="text-[10px] text-[#3A3A3A] ml-auto">definido pelo cargo</span>
+              </div>
+
               <button
-                onClick={() => {
-                  setShowInviteModal(false);
-                  useStore.getState().addToast({
-                    type: "success",
-                    title: "Sucesso",
-                    message: "Convite enviado com sucesso",
-                  });
-                }}
-                className="w-full h-10 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-md hover:bg-[#F5D76A] transition-colors mt-2"
+                onClick={() => void handleCreateMember()}
+                disabled={formLoading}
+                className="w-full h-10 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-md hover:bg-[#F5D76A] transition-colors mt-1 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Enviar convite
+                {formLoading ? <Loader2 size={15} className="animate-spin" /> : "Criar membro"}
               </button>
             </div>
           </div>
