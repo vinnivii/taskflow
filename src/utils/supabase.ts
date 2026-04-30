@@ -7,5 +7,5 @@ const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
+  auth: { autoRefreshToken: false, persistSession: false, storageKey: "sb-admin-session" },
 });

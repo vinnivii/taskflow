@@ -289,7 +289,7 @@ export function Login() {
 
     login({
       id: profile.id, name: profile.name, email: profile.email,
-      avatar: generateAvatar(profile.name), role: profile.role,
+      avatar: profile.avatar || generateAvatar(profile.name), role: profile.role,
       department: profile.department, createdAt: new Date(profile.created_at),
     } as User);
     navigate("/quadro");

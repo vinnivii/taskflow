@@ -32,7 +32,8 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0 : 1,
+    transition: isDragging ? "none" : undefined,
   };
 
   const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
@@ -45,10 +46,10 @@ export function KanbanCard({ task }: KanbanCardProps) {
       {...listeners}
       {...attributes}
       onClick={() => openTaskModal("view", task.id)}
-      className={`bg-[#141414] border border-[#2A2A2A] rounded-lg p-4 shadow-[0_1px_3px_rgba(0,0,0,0.3)] cursor-pointer transition-all duration-[250ms] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 hover:border-[#3A3A3A] ${
-        isDragging ? "rotate-2 shadow-[0_4px_12px_rgba(0,0,0,0.4)]" : ""
-      }`}
+      className="group cursor-pointer pb-0.5"
     >
+      <div className="relative overflow-hidden bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-4 shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-all duration-[250ms] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:-translate-y-0.5 group-hover:border-[var(--c-border-2)]"
+      >
       {/* Priority left border */}
       <div
         className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
@@ -59,19 +60,19 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
       {/* Top row: ID */}
       <div className="flex justify-between items-center mb-1.5">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-[#5A5A5A] font-mono">
+        <span className="text-[11px] font-medium tracking-[0.5px] text-[var(--c-muted-2)] font-mono">
           {task.id}
         </span>
       </div>
 
       {/* Title */}
-      <h3 className="text-[15px] font-semibold text-[#F0F0F0] tracking-[-0.3px] leading-5 line-clamp-2 mb-1.5">
+      <h3 className="text-[15px] font-semibold text-[var(--c-text)] tracking-[-0.3px] leading-5 line-clamp-2 mb-1.5">
         {task.title}
       </h3>
 
       {/* Description */}
       {task.description && (
-        <p className="text-[13px] text-[#8A8A8A] leading-[18px] line-clamp-2 mb-2">
+        <p className="text-[13px] text-[var(--c-muted)] leading-[18px] line-clamp-2 mb-2">
           {task.description}
         </p>
       )}
@@ -104,7 +105,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
         {task.tags.slice(0, 2).map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] leading-3 bg-[#2A2A2A] text-[#8A8A8A]"
+            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] leading-3 bg-[var(--c-surface-4)] text-[var(--c-muted)]"
           >
             {tag}
           </span>
@@ -112,7 +113,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#2A2A2A]">
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--c-border)]">
         <div className="flex items-center gap-2">
           {/* Assignee avatar */}
           {assignee ? (
@@ -130,7 +131,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
           {task.dueDate && (
             <span
               className={`flex items-center gap-1 text-[11px] font-medium tracking-[0.5px] ${
-                isOverdue ? "text-[#EF4444]" : "text-[#5A5A5A]"
+                isOverdue ? "text-[#EF4444]" : "text-[var(--c-muted-2)]"
               }`}
             >
               <Clock size={12} />
@@ -166,6 +167,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
               Arquivar
             </button>
           )}
+        <div className="flex items-center gap-2 text-[var(--c-muted-2)]">
           {(task.comments?.length ?? 0) > 0 && (
             <span className="flex items-center gap-1 text-[11px]">
               <MessageSquare size={12} />
@@ -179,6 +181,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
             </span>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

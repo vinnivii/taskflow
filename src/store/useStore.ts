@@ -192,6 +192,10 @@ interface AppState {
   sidebarExpanded: boolean;
   toggleSidebar: () => void;
 
+  // Theme
+  theme: "dark" | "light";
+  toggleTheme: () => void;
+
   // Toasts
   toasts: ToastMessage[];
   addToast: (toast: Omit<ToastMessage, "id">) => void;
@@ -275,7 +279,7 @@ export const useStore = create<AppState>((set, get) => {
       id: data.id,
       name: data.name,
       email: data.email,
-      avatar: generateAvatar(data.name),
+      avatar: (data as { avatar?: string }).avatar || generateAvatar(data.name),
       role: data.role,
       department: data.department,
       createdAt: new Date(data.created_at),
@@ -300,7 +304,7 @@ export const useStore = create<AppState>((set, get) => {
       id: row.id,
       name: row.name,
       email: row.email,
-      avatar: generateAvatar(row.name),
+      avatar: row.avatar || generateAvatar(row.name),
       role: row.role,
       department: row.department,
       createdAt: new Date(row.created_at),
@@ -664,6 +668,14 @@ export const useStore = create<AppState>((set, get) => {
   sidebarExpanded: false,
   toggleSidebar: () =>
     set((state) => ({ sidebarExpanded: !state.sidebarExpanded })),
+
+  theme: (localStorage.getItem("tf_theme") as "dark" | "light") || "dark",
+  toggleTheme: () =>
+    set((state) => {
+      const next = state.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("tf_theme", next);
+      return { theme: next };
+    }),
 
   // Toasts
   toasts: [],

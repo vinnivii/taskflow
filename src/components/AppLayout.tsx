@@ -26,7 +26,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#0A0A0A] overflow-hidden">
+    <div className="flex h-screen w-screen bg-[var(--c-page)] overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0">
         <TopHeader title={title} />
