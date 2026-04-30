@@ -4,6 +4,7 @@ import { Clock, MessageSquare, Paperclip } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
+import { usePermissions } from "@/hooks/usePermissions";
 import { priorityColors, statusColors, departmentColors } from "@/types";
 import type { Task, TaskPriority } from "@/types";
 
@@ -14,6 +15,9 @@ interface KanbanCardProps {
 export function KanbanCard({ task }: KanbanCardProps) {
   const openTaskModal = useStore((s) => s.openTaskModal);
   const users = useStore((s) => s.users);
+  const archiveTask = useStore((s) => s.archiveTask);
+  const addToast = useStore((s) => s.addToast);
+  const perms = usePermissions();
 
   const {
     attributes,
@@ -137,6 +141,31 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
         {/* Comments & attachments */}
         <div className="flex items-center gap-2 text-[#5A5A5A]">
+          {task.status === "concluido" && !task.archived && perms.canArchiveTask() && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const ok = await archiveTask(task.id);
+                if (ok) {
+                  addToast({
+                    type: "success",
+                    title: "Tarefa arquivada",
+                    message: "Ela foi ocultada do quadro e permanece na lista de tarefas.",
+                  });
+                }
+              }}
+              className="text-[11px] font-semibold tracking-[0.5px] text-[#F2C94C] hover:underline"
+              title="Arquivar (oculta do quadro)"
+            >
+              Arquivar
+            </button>
+          )}
           {(task.comments?.length ?? 0) > 0 && (
             <span className="flex items-center gap-1 text-[11px]">
               <MessageSquare size={12} />

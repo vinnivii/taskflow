@@ -19,6 +19,7 @@ export function usePermissions() {
         canManageUsers: false,
         canDeleteTask: false,
         canBatchEdit: false,
+        canArchiveTask: () => false,
       };
     }
 
@@ -102,6 +103,7 @@ export function usePermissions() {
       canManageUsers: role === "supervisor_geral",
       canDeleteTask: ["supervisor_geral", "supervisor_adjunto"].includes(role),
       canBatchEdit: ["supervisor_geral", "supervisor_adjunto"].includes(role),
+      canArchiveTask: () => ["supervisor_geral", "supervisor_adjunto"].includes(role),
     };
   }, [role, currentUser]);
 

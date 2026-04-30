@@ -70,6 +70,7 @@ export function TaskModal() {
     fetchActivityLog,
     addComment,
     addActivityEntry,
+    archiveTask,
   } = useStore();
 
   const perms = usePermissions();
@@ -121,8 +122,6 @@ export function TaskModal() {
     }
   }, [existingTask, taskModalMode, taskModalDefaultStatus, currentUser?.department]);
 
-  if (!taskModalOpen) return null;
-
   const canEdit =
     taskModalMode === "create" ||
     (existingTask &&
@@ -149,6 +148,8 @@ export function TaskModal() {
         tags,
         displayId: "",
         attachmentsCount: 0,
+        archived: false,
+        archivedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -218,6 +219,14 @@ export function TaskModal() {
 
   const task = existingTask;
   const activityLog = task?.activityLog || [];
+  const sortedActivityLog = useMemo(() => {
+    const toMs = (value: unknown) => {
+      const d = value instanceof Date ? value : new Date(value as string);
+      const ms = d.getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    };
+    return [...activityLog].sort((a, b) => toMs(b.createdAt) - toMs(a.createdAt));
+  }, [activityLog]);
   const resolveActorName = (userId: string) => {
     const found = users.find((u) => u.id === userId);
     if (found?.name) return found.name;
@@ -233,6 +242,8 @@ export function TaskModal() {
     view: { label: "Visualizar", bg: "rgba(138,138,138,0.12)", color: "#8A8A8A" },
   }[taskModalMode];
 
+  if (!taskModalOpen) return null;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center" onClick={closeTaskModal}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
@@ -246,6 +257,26 @@ export function TaskModal() {
           @keyframes modal-in {
             from { opacity: 0; transform: scale(0.94) translateY(8px); }
             to   { opacity: 1; transform: scale(1)    translateY(0);   }
+          }
+
+          /* Minimal dark scrollbars (TaskModal only) */
+          .taskmodal-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #111 transparent;
+          }
+          .taskmodal-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+          }
+          .taskmodal-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .taskmodal-scroll::-webkit-scrollbar-thumb {
+            background: #111;
+            border-radius: 999px;
+          }
+          .taskmodal-scroll::-webkit-scrollbar-thumb:hover {
+            background: #1f1f1f;
           }
         `}</style>
 
@@ -271,7 +302,7 @@ export function TaskModal() {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 taskmodal-scroll">
           {/* Title */}
           <input
             type="text"
@@ -450,10 +481,80 @@ export function TaskModal() {
               </div>
             </div>
           ) : (
-            /* View mode — right-rail badges */
-            <div className="flex gap-6 mb-5">
-              <div className="flex-1" />
-              <div className="w-[200px] shrink-0 space-y-3">
+            /* View mode — comments left, metadata right */
+            <div className="grid grid-cols-[1fr_260px] gap-6 mb-5">
+              {/* Left: comments/activity */}
+              <div className="min-w-0">
+                <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
+                  Comentários
+                </label>
+
+                <div className="bg-[#101010] border border-[#1E1E1E] rounded-xl p-4">
+                  <div className="max-h-[320px] overflow-y-auto pr-1 space-y-3 taskmodal-scroll">
+                    {sortedActivityLog.length === 0 ? (
+                      <div className="text-[12px] text-[#444]">Sem comentários ainda.</div>
+                    ) : (
+                      sortedActivityLog.map((entry) => {
+                        const actorName = resolveActorName(entry.userId);
+                        return (
+                          <div key={entry.id} className="flex items-start gap-2.5">
+                            <img
+                              src={users.find((u) => u.id === entry.userId)?.avatar || currentUser?.avatar || ""}
+                              alt={actorName}
+                              className="w-7 h-7 rounded-full shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[13px] leading-[18px]">
+                                <span className="font-semibold text-[#E0E0E0]">{actorName}</span>{" "}
+                                <span className="text-[#666]">{entry.details}</span>
+                              </div>
+                              <div className="text-[11px] text-[#444]">
+                                {(() => {
+                                  const d =
+                                    entry.createdAt instanceof Date
+                                      ? entry.createdAt
+                                      : new Date(entry.createdAt as unknown as string);
+                                  return Number.isFinite(d.getTime())
+                                    ? format(d, "dd/MM/yyyy HH:mm", { locale: ptBR })
+                                    : "—";
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 pt-3 mt-3 border-t border-[#1E1E1E]">
+                    <img
+                      src={currentUser?.avatar}
+                      alt={currentUser?.name}
+                      className="w-8 h-8 rounded-full shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleAddComment();
+                      }}
+                      placeholder="Adicionar comentário..."
+                      className="flex-1 h-10 bg-[#1A1A1A] border border-[#242424] rounded-xl px-3.5 text-[13px] text-[#E0E0E0] placeholder:text-[#444] outline-none focus:border-[#333] transition-colors"
+                    />
+                    <button
+                      onClick={() => void handleAddComment()}
+                      disabled={!commentText.trim()}
+                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
+                    >
+                      <Send size={15} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: metadata */}
+              <div className="w-[260px] shrink-0 space-y-3">
                 {/* Priority badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Prioridade</span>
@@ -465,16 +566,29 @@ export function TaskModal() {
                     {priorityDisplayNames[priority]}
                   </span>
                 </div>
+
                 {/* Status badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Status</span>
-                  <span
-                    className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
-                    style={{ background: statusBg[status], color: statusColors[status] }}
-                  >
-                    {statusDisplayNames[status]}
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
+                      style={{ background: statusBg[status], color: statusColors[status] }}
+                    >
+                      {statusDisplayNames[status]}
+                    </span>
+
+                    {task?.archived && (
+                      <span
+                        className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#2A2A2A] text-[#8A8A8A]"
+                        title="Arquivada (visível apenas na lista de tarefas)"
+                      >
+                        Arquivada
+                      </span>
+                    )}
+                  </div>
                 </div>
+
                 {/* Assignee */}
                 {selectedAssignee && (
                   <div>
@@ -485,6 +599,7 @@ export function TaskModal() {
                     </div>
                   </div>
                 )}
+
                 {/* Due date */}
                 {dueDate && (
                   <div>
@@ -495,6 +610,7 @@ export function TaskModal() {
                     </span>
                   </div>
                 )}
+
                 {/* Department badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Setor</span>
@@ -505,6 +621,7 @@ export function TaskModal() {
                     {departmentDisplayNames[department]}
                   </span>
                 </div>
+
                 {/* Tags */}
                 {tags.length > 0 && (
                   <div>
@@ -518,6 +635,7 @@ export function TaskModal() {
                     </div>
                   </div>
                 )}
+
                 {/* Timestamps */}
                 {task && (
                   <div className="pt-3 border-t border-[#1E1E1E] space-y-1">
@@ -534,14 +652,14 @@ export function TaskModal() {
           )}
 
           {/* Activity / Comments */}
-          {task && (
+          {task && isEditing && (
             <>
               <div className="border-t border-[#1E1E1E] pt-5 mt-1">
                 <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
                   Atividade
                 </label>
                 <div className="space-y-3 mb-4">
-                  {activityLog.map((entry) => {
+                  {sortedActivityLog.map((entry) => {
                     const actorName = resolveActorName(entry.userId);
                     return (
                       <div key={entry.id} className="flex items-start gap-2.5">
@@ -556,7 +674,15 @@ export function TaskModal() {
                             <span className="text-[#666]">{entry.details}</span>
                           </span>
                           <span className="text-[11px] text-[#444] ml-2">
-                            {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            {(() => {
+                              const d =
+                                entry.createdAt instanceof Date
+                                  ? entry.createdAt
+                                  : new Date(entry.createdAt as unknown as string);
+                              return Number.isFinite(d.getTime())
+                                ? format(d, "dd/MM/yyyy HH:mm", { locale: ptBR })
+                                : "—";
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -602,6 +728,29 @@ export function TaskModal() {
             >
               Cancelar
             </button>
+            {task &&
+              taskModalMode !== "create" &&
+              task.status === "concluido" &&
+              !task.archived &&
+              perms.canArchiveTask() && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await archiveTask(task.id);
+                    if (!ok) return;
+                    addToast({
+                      type: "success",
+                      title: "Tarefa arquivada",
+                      message: "Ela foi ocultada do quadro e permanece na lista de tarefas.",
+                    });
+                    closeTaskModal();
+                  }}
+                  className="h-9 px-5 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] text-[#F2C94C] text-[13px] font-semibold hover:bg-[#222] transition-colors"
+                  title="Arquivar (oculta do quadro)"
+                >
+                  Arquivar
+                </button>
+              )}
             <button
               onClick={() => void handleSave()}
               className="h-9 px-5 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-lg hover:bg-[#F5D76A] transition-colors shadow-[0_0_16px_rgba(242,201,76,0.25)] hover:shadow-[0_0_24px_rgba(242,201,76,0.4)]"

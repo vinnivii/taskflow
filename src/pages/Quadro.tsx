@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -27,7 +27,7 @@ export function Quadro() {
   const addToast = useStore((s) => s.addToast);
   const perms = usePermissions();
 
-  const [activeTask, setActiveTask] = React.useState<Task | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -40,6 +40,9 @@ export function Quadro() {
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
+
+    // Archived tasks should not appear on the Kanban board
+    result = result.filter((t) => !t.archived);
 
     // Department filter
     if (filters.department !== "all") {
@@ -206,6 +209,3 @@ export function Quadro() {
     </AppLayout>
   );
 }
-
-// Need React import for useState
-import React from "react";

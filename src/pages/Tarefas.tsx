@@ -11,6 +11,16 @@ import { AppLayout } from "@/components/AppLayout";
 import { FilterBar } from "@/components/FilterBar";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   priorityColors,
@@ -31,10 +41,15 @@ export function Tarefas() {
   const filters = useStore((s) => s.filters);
   const searchQuery = useStore((s) => s.searchQuery);
   const openTaskModal = useStore((s) => s.openTaskModal);
+  const unarchiveTask = useStore((s) => s.unarchiveTask);
+  const addToast = useStore((s) => s.addToast);
+  const perms = usePermissions();
 
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [unarchiveDialogOpen, setUnarchiveDialogOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const perPage = 20;
 
   const handleSort = (column: SortColumn) => {
@@ -261,15 +276,39 @@ export function Tarefas() {
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px]"
-                          style={{
-                            backgroundColor: `${statusColors[task.status]}26`,
-                            color: statusColors[task.status],
-                          }}
-                        >
-                          {statusDisplayNames[task.status]}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px]"
+                            style={{
+                              backgroundColor: `${statusColors[task.status]}26`,
+                              color: statusColors[task.status],
+                            }}
+                          >
+                            {statusDisplayNames[task.status]}
+                          </span>
+
+                          {task.archived && (
+                            perms.canArchiveTask() ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSelectedTaskId(task.id);
+                                  setUnarchiveDialogOpen(true);
+                                }}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[#2A2A2A] text-[#8A8A8A] hover:text-[#F0F0F0] hover:bg-[#333333] transition-colors"
+                                title="Clique para desarquivar"
+                              >
+                                Arquivada
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] bg-[#2A2A2A] text-[#8A8A8A]">
+                                Arquivada
+                              </span>
+                            )
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-[13px] text-[#5A5A5A] whitespace-nowrap">
                         {formatDueDate(task)}
@@ -280,6 +319,48 @@ export function Tarefas() {
               </tbody>
             </table>
           </div>
+
+          <AlertDialog
+            open={unarchiveDialogOpen}
+            onOpenChange={(open) => {
+              setUnarchiveDialogOpen(open);
+              if (!open) setSelectedTaskId(null);
+            }}
+          >
+            <AlertDialogContent
+              onClick={(e) => {
+                // Prevent row click behind the dialog
+                e.stopPropagation();
+              }}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desarquivar tarefa?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Ao desarquivar, a tarefa volta a aparecer no quadro Kanban.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    if (!selectedTaskId) return;
+                    const ok = await unarchiveTask(selectedTaskId);
+                    if (ok) {
+                      addToast({
+                        type: "success",
+                        title: "Tarefa desarquivada",
+                        message: "Ela voltou a aparecer no quadro.",
+                      });
+                    }
+                    setUnarchiveDialogOpen(false);
+                    setSelectedTaskId(null);
+                  }}
+                >
+                  Desarquivar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Pagination */}
           {totalPages > 1 && (

@@ -63,6 +63,8 @@ export interface Task {
   dueDate: Date | null;
   tags: string[];
   attachmentsCount: number;
+  archived: boolean;
+  archivedAt: Date | null;
   comments?: Comment[];
   activityLog?: ActivityEntry[];
   createdAt: Date;

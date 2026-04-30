@@ -33,6 +33,8 @@ type TaskRow = {
   due_date: string | null;
   tags?: string[] | null;
   attachments_count?: number | null;
+  archived?: boolean | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -78,6 +80,8 @@ const toTask = (row: TaskRow): Task => ({
   dueDate: row.due_date ? new Date(row.due_date) : null,
   tags: row.tags ?? [],
   attachmentsCount: row.attachments_count ?? 0,
+  archived: row.archived ?? false,
+  archivedAt: row.archived_at ? new Date(row.archived_at) : null,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
@@ -94,6 +98,8 @@ const toTaskInsert = (task: Task) => ({
   due_date: task.dueDate ? task.dueDate.toISOString() : null,
   tags: task.tags,
   attachments_count: task.attachmentsCount,
+  archived: task.archived ?? false,
+  archived_at: task.archivedAt ? task.archivedAt.toISOString() : null,
   created_at: task.createdAt.toISOString(),
   updated_at: task.updatedAt.toISOString(),
 });
@@ -115,6 +121,10 @@ const toTaskUpdate = (updates: Partial<Task>) => {
   }
   if (updates.tags !== undefined) payload.tags = updates.tags;
   if (updates.attachmentsCount !== undefined) payload.attachments_count = updates.attachmentsCount;
+  if (updates.archived !== undefined) payload.archived = updates.archived;
+  if (updates.archivedAt !== undefined) {
+    payload.archived_at = updates.archivedAt ? updates.archivedAt.toISOString() : null;
+  }
   payload.updated_at = new Date().toISOString();
 
   return payload;
@@ -147,6 +157,8 @@ interface AppState {
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
   moveTask: (taskId: string, newStatus: TaskStatus) => Promise<boolean>;
+  archiveTask: (taskId: string) => Promise<boolean>;
+  unarchiveTask: (taskId: string) => Promise<boolean>;
 
   // Comments
   fetchComments: (taskId: string) => Promise<Comment[]>;
@@ -437,6 +449,64 @@ export const useStore = create<AppState>((set, get) => {
       tasks: state.tasks.map((task) =>
         task.id === taskId
           ? { ...movedTask, comments: task.comments, activityLog: task.activityLog }
+          : task
+      ),
+    }));
+    return true;
+  },
+
+  archiveTask: async (taskId) => {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ archived: true, archived_at: now, updated_at: now })
+      .eq("id", taskId)
+      .select("*")
+      .single();
+
+    if (error) {
+      get().addToast({
+        type: "error",
+        title: "Erro ao arquivar tarefa",
+        message: error.message,
+      });
+      return false;
+    }
+
+    const updatedTask = toTask(data as TaskRow);
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? { ...updatedTask, comments: task.comments, activityLog: task.activityLog }
+          : task
+      ),
+    }));
+    return true;
+  },
+
+  unarchiveTask: async (taskId) => {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ archived: false, archived_at: null, updated_at: now })
+      .eq("id", taskId)
+      .select("*")
+      .single();
+
+    if (error) {
+      get().addToast({
+        type: "error",
+        title: "Erro ao desarquivar tarefa",
+        message: error.message,
+      });
+      return false;
+    }
+
+    const updatedTask = toTask(data as TaskRow);
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? { ...updatedTask, comments: task.comments, activityLog: task.activityLog }
           : task
       ),
     }));
