@@ -141,7 +141,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
         </div>
 
         {/* Comments & attachments */}
-        <div className="flex items-center gap-2 text-[#5A5A5A]">
+        <div className="flex items-center gap-2 text-[var(--c-muted-2)]">
           {task.status === "concluido" && !task.archived && perms.canArchiveTask() && (
             <button
               type="button"
@@ -167,7 +167,6 @@ export function KanbanCard({ task }: KanbanCardProps) {
               Arquivar
             </button>
           )}
-        <div className="flex items-center gap-2 text-[var(--c-muted-2)]">
           {(task.comments?.length ?? 0) > 0 && (
             <span className="flex items-center gap-1 text-[11px]">
               <MessageSquare size={12} />
@@ -182,7 +181,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
           )}
         </div>
       </div>
-      </div>
     </div>
+  </div>
   );
 }

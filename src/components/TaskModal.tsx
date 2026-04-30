@@ -506,8 +506,10 @@ export function TaskModal() {
                       <img src={selectedAssignee.avatar} alt={selectedAssignee.name} className="w-5 h-5 rounded-full" />
                       <span className="text-[13px] text-[var(--c-text-2)]">{selectedAssignee.name}</span>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-[13px] text-[#666]">Não atribuído</span>
+                  )}
+                </MetaRow>
                 {/* Due date */}
                 <MetaRow label="Prazo">
                   {dueDate ? (
@@ -515,8 +517,10 @@ export function TaskModal() {
                       <Calendar size={12} className="text-[var(--c-muted-2)]" />
                       {format(new Date(dueDate), "dd/MM/yyyy", { locale: ptBR })}
                     </span>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-[13px] text-[#666]">Sem prazo</span>
+                  )}
+                </MetaRow>
                 {/* Department badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Setor</span>
