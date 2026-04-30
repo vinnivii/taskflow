@@ -30,10 +30,16 @@ function RoleGuard({
 
 function App() {
   const initAuth = useStore((s) => s.initAuth);
+  const theme = useStore((s) => s.theme);
 
   useEffect(() => {
     void initAuth();
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("light", theme === "light");
+  }, [theme]);
 
   return (
     <Routes>

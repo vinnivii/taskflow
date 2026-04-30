@@ -117,7 +117,7 @@ export function Relatorios() {
     <AppLayout title="Relatorios">
       {/* Header with date range */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px]">
+        <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
           Relatorios
         </h1>
         <div className="flex gap-2">
@@ -128,7 +128,7 @@ export function Relatorios() {
               className={`h-8 px-3 rounded-md text-[11px] font-semibold tracking-[0.5px] transition-all ${
                 dateRange === opt.value
                   ? "bg-[#F2C94C] text-[#0A0A0A]"
-                  : "bg-[#1E1E1E] text-[#8A8A8A] border border-[#2A2A2A] hover:bg-[#262626]"
+                  : "bg-[var(--c-surface-3)] text-[var(--c-muted)] border border-[var(--c-border)] hover:bg-[var(--c-hover)]"
               }`}
             >
               {opt.label}
@@ -140,11 +140,11 @@ export function Relatorios() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total tasks */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-5">
-          <div className="text-[32px] font-bold text-[#F0F0F0] tracking-[-1.5px] leading-[38px]">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+          <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.total}
           </div>
-          <div className="text-[13px] text-[#8A8A8A] mt-1">Total de tarefas</div>
+          <div className="text-[13px] text-[var(--c-muted)] mt-1">Total de tarefas</div>
           <div className="flex items-center gap-1 mt-2 text-[#22C55E]">
             <ArrowUp size={14} />
             <span className="text-[11px] font-medium tracking-[0.5px]">+12% vs anterior</span>
@@ -152,30 +152,30 @@ export function Relatorios() {
         </div>
 
         {/* Completed */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-5">
-          <div className="text-[32px] font-bold text-[#F0F0F0] tracking-[-1.5px] leading-[38px]">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+          <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.completed}
           </div>
-          <div className="text-[13px] text-[#8A8A8A] mt-1">Concluidas</div>
+          <div className="text-[13px] text-[var(--c-muted)] mt-1">Concluidas</div>
           <div className="mt-2">
-            <div className="w-full h-1 bg-[#1E1E1E] rounded-full overflow-hidden">
+            <div className="w-full h-1 bg-[var(--c-surface-3)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#22C55E] rounded-full transition-all duration-600"
                 style={{ width: `${metrics.completionRate}%` }}
               />
             </div>
-            <span className="text-[11px] text-[#5A5A5A] mt-1">
+            <span className="text-[11px] text-[var(--c-muted-2)] mt-1">
               {metrics.completionRate}% do total
             </span>
           </div>
         </div>
 
         {/* Avg time */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-5">
-          <div className="text-[32px] font-bold text-[#F0F0F0] tracking-[-1.5px] leading-[38px]">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+          <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.avgTime}d
           </div>
-          <div className="text-[13px] text-[#8A8A8A] mt-1">
+          <div className="text-[13px] text-[var(--c-muted)] mt-1">
             Tempo medio de resolucao
           </div>
           <div className="flex items-center gap-1 mt-2 text-[#22C55E]">
@@ -185,11 +185,11 @@ export function Relatorios() {
         </div>
 
         {/* Pending */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-5">
-          <div className="text-[32px] font-bold text-[#F0F0F0] tracking-[-1.5px] leading-[38px]">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+          <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.pending}
           </div>
-          <div className="text-[13px] text-[#8A8A8A] mt-1">Pendentes</div>
+          <div className="text-[13px] text-[var(--c-muted)] mt-1">Pendentes</div>
           <div className="text-[11px] text-[#EF4444] mt-2">
             {metrics.overdue} atrasadas
           </div>
@@ -199,8 +199,8 @@ export function Relatorios() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Status bar chart */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-6">
-          <h2 className="text-[18px] font-semibold text-[#F0F0F0] tracking-[-0.5px] mb-4">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-6">
+          <h2 className="text-[18px] font-semibold text-[var(--c-text)] tracking-[-0.5px] mb-4">
             Tarefas por status
           </h2>
           <div className="space-y-3">
@@ -213,10 +213,10 @@ export function Relatorios() {
                     : 0;
                 return (
                   <div key={status} className="flex items-center gap-3">
-                    <span className="text-[13px] text-[#8A8A8A] w-28 shrink-0">
+                    <span className="text-[13px] text-[var(--c-muted)] w-28 shrink-0">
                       {statusDisplayNames[status]}
                     </span>
-                    <div className="flex-1 h-7 bg-[#1E1E1E] rounded-md overflow-hidden">
+                    <div className="flex-1 h-7 bg-[var(--c-surface-3)] rounded-md overflow-hidden">
                       <div
                         className="h-full rounded-md transition-all duration-600 ease-out"
                         style={{
@@ -226,7 +226,7 @@ export function Relatorios() {
                         }}
                       />
                     </div>
-                    <span className="text-[11px] text-[#5A5A5A] w-6 text-right shrink-0">
+                    <span className="text-[11px] text-[var(--c-muted-2)] w-6 text-right shrink-0">
                       {count}
                     </span>
                   </div>
@@ -237,8 +237,8 @@ export function Relatorios() {
         </div>
 
         {/* Department donut chart */}
-        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-6">
-          <h2 className="text-[18px] font-semibold text-[#F0F0F0] tracking-[-0.5px] mb-4">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-6">
+          <h2 className="text-[18px] font-semibold text-[var(--c-text)] tracking-[-0.5px] mb-4">
             Tarefas por setor
           </h2>
           <div className="flex items-center justify-center">
@@ -275,8 +275,8 @@ export function Relatorios() {
               </svg>
               {/* Center text */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[24px] font-bold text-[#F0F0F0]">{deptTotal}</span>
-                <span className="text-[11px] text-[#5A5A5A]">tarefas</span>
+                <span className="text-[24px] font-bold text-[var(--c-text)]">{deptTotal}</span>
+                <span className="text-[11px] text-[var(--c-muted-2)]">tarefas</span>
               </div>
             </div>
           </div>
@@ -289,10 +289,10 @@ export function Relatorios() {
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: deptColors[dept] }}
                 />
-                <span className="text-[13px] text-[#8A8A8A]">
+                <span className="text-[13px] text-[var(--c-muted)]">
                   {departmentDisplayNames[dept]}
                 </span>
-                <span className="text-[11px] text-[#5A5A5A]">
+                <span className="text-[11px] text-[var(--c-muted-2)]">
                   {deptDistribution[dept]}
                 </span>
               </div>
@@ -302,16 +302,16 @@ export function Relatorios() {
       </div>
 
       {/* Activity Feed */}
-      <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-6">
-        <h2 className="text-[18px] font-semibold text-[#F0F0F0] tracking-[-0.5px] mb-1">
+      <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-6">
+        <h2 className="text-[18px] font-semibold text-[var(--c-text)] tracking-[-0.5px] mb-1">
           Atividade recente
         </h2>
-        <p className="text-[13px] text-[#8A8A8A] mb-4">
+        <p className="text-[13px] text-[var(--c-muted)] mb-4">
           Ultimas acoes da equipe
         </p>
 
         {recentActivity.length === 0 ? (
-          <p className="text-[13px] text-[#5A5A5A]">Sem atividades no periodo</p>
+          <p className="text-[13px] text-[var(--c-muted-2)]">Sem atividades no periodo</p>
         ) : (
           <div className="space-y-0">
             {recentActivity.map((entry) => {
@@ -319,7 +319,7 @@ export function Relatorios() {
               return (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-3 py-3 border-b border-[#2A2A2A] last:border-0"
+                  className="flex items-center gap-3 py-3 border-b border-[var(--c-border)] last:border-0"
                 >
                   <img
                     src={user?.avatar || ""}
@@ -327,13 +327,13 @@ export function Relatorios() {
                     className="w-8 h-8 rounded-full shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <span className="text-[13px] text-[#F0F0F0]">
+                    <span className="text-[13px] text-[var(--c-text)]">
                       <span className="font-medium">{user?.name}</span>{" "}
                       {entry.details.toLowerCase()}{" "}
                       <span className="text-[#F2C94C]">{entry.taskId}</span>
                     </span>
                   </div>
-                  <span className="text-[11px] text-[#5A5A5A] shrink-0">
+                  <span className="text-[11px] text-[var(--c-muted-2)] shrink-0">
                     {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
                   </span>
                 </div>

@@ -132,9 +132,9 @@ export function Tarefas() {
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) return null;
     return sortDirection === "asc" ? (
-      <ChevronUp size={12} className="text-[#5A5A5A]" />
+      <ChevronUp size={12} className="text-[var(--c-muted-2)]" />
     ) : (
-      <ChevronDown size={12} className="text-[#5A5A5A]" />
+      <ChevronDown size={12} className="text-[var(--c-muted-2)]" />
     );
   };
 
@@ -152,10 +152,10 @@ export function Tarefas() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px]">
+          <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
             Tarefas
           </h1>
-          <span className="text-[13px] text-[#8A8A8A]">
+          <span className="text-[13px] text-[var(--c-muted)]">
             Mostrando {Math.min(paginatedTasks.length, perPage)} de {filteredTasks.length} tarefas
           </span>
         </div>
@@ -167,11 +167,11 @@ export function Tarefas() {
 
       {filteredTasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <ClipboardList size={64} className="text-[#5A5A5A] mb-4" />
-          <h2 className="text-[18px] font-semibold text-[#8A8A8A] tracking-[-0.5px]">
+          <ClipboardList size={64} className="text-[var(--c-muted-2)] mb-4" />
+          <h2 className="text-[18px] font-semibold text-[var(--c-muted)] tracking-[-0.5px]">
             Nenhuma tarefa encontrada
           </h2>
-          <p className="text-[13px] text-[#5A5A5A] mt-2">
+          <p className="text-[13px] text-[var(--c-muted-2)] mt-2">
             Tente ajustar os filtros ou criar uma nova tarefa
           </p>
         </div>
@@ -181,12 +181,12 @@ export function Tarefas() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b-2 border-[#2A2A2A]">
+                <tr className="border-b-2 border-[var(--c-border)]">
                   {columns.map((col) => (
                     <th
                       key={col.id}
                       onClick={() => handleSort(col.id)}
-                      className="text-left text-[11px] font-medium tracking-[0.5px] text-[#8A8A8A] uppercase py-3 px-4 cursor-pointer hover:text-[#F0F0F0] transition-colors select-none whitespace-nowrap"
+                      className="text-left text-[11px] font-medium tracking-[0.5px] text-[var(--c-muted)] uppercase py-3 px-4 cursor-pointer hover:text-[var(--c-text)] transition-colors select-none whitespace-nowrap"
                     >
                       <span className="flex items-center gap-1">
                         {col.label}
@@ -203,15 +203,15 @@ export function Tarefas() {
                     <tr
                       key={task.id}
                       onClick={() => openTaskModal("view", task.id)}
-                      className={`border-b border-[#2A2A2A] cursor-pointer transition-colors hover:bg-[#1E1E1E] ${
+                      className={`border-b border-[var(--c-border)] cursor-pointer transition-colors hover:bg-[var(--c-surface-3)] ${
                         index % 2 === 1 ? "bg-[rgba(255,255,255,0.02)]" : ""
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <div className="text-[14px] text-[#F0F0F0] font-medium truncate max-w-[280px]">
+                        <div className="text-[14px] text-[var(--c-text)] font-medium truncate max-w-[280px]">
                           {task.title}
                         </div>
-                        <div className="text-[11px] text-[#5A5A5A] font-mono mt-0.5">
+                        <div className="text-[11px] text-[var(--c-muted-2)] font-mono mt-0.5">
                           {task.id}
                         </div>
                       </td>
@@ -224,12 +224,12 @@ export function Tarefas() {
                                 alt={assignee.name}
                                 className="w-6 h-6 rounded-full"
                               />
-                              <span className="text-[13px] text-[#8A8A8A]">
+                              <span className="text-[13px] text-[var(--c-muted)]">
                                 {assignee.name.split(" ")[0]}
                               </span>
                             </>
                           ) : (
-                            <span className="text-[13px] text-[#5A5A5A]">Nao atribuido</span>
+                            <span className="text-[13px] text-[var(--c-muted-2)]">Nao atribuido</span>
                           )}
                         </div>
                       </td>
@@ -255,7 +255,7 @@ export function Tarefas() {
                             className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: priorityColors[task.priority] }}
                           />
-                          <span className="text-[13px] text-[#8A8A8A]">
+                          <span className="text-[13px] text-[var(--c-muted)]">
                             {priorityDisplayNames[task.priority]}
                           </span>
                         </div>
@@ -271,7 +271,7 @@ export function Tarefas() {
                           {statusDisplayNames[task.status]}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-[13px] text-[#5A5A5A] whitespace-nowrap">
+                      <td className="py-3 px-4 text-[13px] text-[var(--c-muted-2)] whitespace-nowrap">
                         {formatDueDate(task)}
                       </td>
                     </tr>
@@ -287,7 +287,7 @@ export function Tarefas() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="h-9 px-3 bg-[#1E1E1E] border border-[#2A2A2A] text-[#8A8A8A] text-[13px] rounded-md hover:bg-[#262626] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Anterior
               </button>
@@ -299,7 +299,7 @@ export function Tarefas() {
                   className={`w-9 h-9 text-[11px] font-medium rounded-md transition-colors ${
                     page === currentPage
                       ? "bg-[#F2C94C] text-[#0A0A0A]"
-                      : "bg-[#1E1E1E] border border-[#2A2A2A] text-[#8A8A8A] hover:bg-[#262626]"
+                      : "bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] hover:bg-[var(--c-hover)]"
                   }`}
                 >
                   {page}
@@ -309,7 +309,7 @@ export function Tarefas() {
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="h-9 px-3 bg-[#1E1E1E] border border-[#2A2A2A] text-[#8A8A8A] text-[13px] rounded-md hover:bg-[#262626] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Proxima
               </button>

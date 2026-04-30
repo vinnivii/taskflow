@@ -33,17 +33,17 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
         style={{ borderTopColor: color }}
       >
         <div className="flex items-center gap-2">
-          <h2 className="text-[18px] font-semibold text-[#F0F0F0] tracking-[-0.5px] leading-6">
+          <h2 className="text-[18px] font-semibold text-[var(--c-text)] tracking-[-0.5px] leading-6">
             {title}
           </h2>
-          <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 bg-[#1E1E1E] rounded text-[11px] font-medium tracking-[0.5px] text-[#5A5A5A]">
+          <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 bg-[var(--c-surface-3)] rounded text-[11px] font-medium tracking-[0.5px] text-[var(--c-muted-2)]">
             {tasks.length}
           </span>
         </div>
         {canCreate && (
           <button
             onClick={() => openTaskModal("create", null, status)}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-[#5A5A5A] hover:text-[#F0F0F0] hover:bg-[#262626] transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors"
           >
             <Plus size={18} />
           </button>
@@ -53,15 +53,18 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
       {/* Column body */}
       <div
         ref={setNodeRef}
-        className={`flex flex-col gap-3 flex-1 min-h-[200px] rounded-lg p-2 transition-colors ${
-          isOver ? "bg-[rgba(242,201,76,0.04)]" : ""
-        }`}
-        style={isOver ? { outline: `2px dashed ${color}`, outlineOffset: '-2px' } : {}}
+        className={`flex flex-col gap-3 flex-1 min-h-[200px] rounded-lg p-2 transition-all duration-200`}
+        style={isOver ? {
+          backgroundColor: `${color}08`,
+          outline: `2px dashed ${color}55`,
+          outlineOffset: '-2px',
+          boxShadow: `inset 0 0 24px ${color}0a`,
+        } : {}}
       >
         {tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="text-[#5A5A5A] text-[13px]">Nenhuma tarefa</div>
-            <div className="text-[#5A5A5A] text-[11px] mt-1 opacity-70">
+            <div className="text-[var(--c-muted-2)] text-[13px]">Nenhuma tarefa</div>
+            <div className="text-[var(--c-muted-2)] text-[11px] mt-1 opacity-70">
               Arraste tarefas para aqui
             </div>
             {canCreate && (

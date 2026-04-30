@@ -116,10 +116,10 @@ export function Equipe() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px]">
+          <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
             Equipe
           </h1>
-          <span className="text-[13px] text-[#8A8A8A]">
+          <span className="text-[13px] text-[var(--c-muted)]">
             {filteredMembers.length} membros
           </span>
         </div>
@@ -141,7 +141,7 @@ export function Equipe() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nome..."
-          className="w-80 h-9 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[14px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+          className="w-80 h-9 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]"
         />
         <div className="flex gap-1">
           {deptOptions.map((d) => (
@@ -151,7 +151,7 @@ export function Equipe() {
               className={`h-8 px-3 rounded-md text-[11px] font-semibold tracking-[0.5px] transition-all ${
                 deptFilter === d.value
                   ? "bg-[#F2C94C] text-[#0A0A0A]"
-                  : "bg-[#1E1E1E] text-[#8A8A8A] border border-[#2A2A2A] hover:bg-[#262626]"
+                  : "bg-[var(--c-surface-3)] text-[var(--c-muted)] border border-[var(--c-border)] hover:bg-[var(--c-hover)]"
               }`}
             >
               {d.label}
@@ -161,7 +161,7 @@ export function Equipe() {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value as UserRole | "all")}
-          className="h-8 px-3 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md text-[11px] font-medium text-[#F0F0F0] outline-none cursor-pointer"
+          className="h-8 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md text-[11px] font-medium text-[var(--c-text)] outline-none cursor-pointer"
         >
           {roleOptions.map((r) => (
             <option key={r.value} value={r.value}>
@@ -174,11 +174,11 @@ export function Equipe() {
       {/* Member Grid */}
       {filteredMembers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <Users size={64} className="text-[#5A5A5A] mb-4" />
-          <h2 className="text-[18px] font-semibold text-[#8A8A8A]">
+          <Users size={64} className="text-[var(--c-muted-2)] mb-4" />
+          <h2 className="text-[18px] font-semibold text-[var(--c-muted)]">
             Nenhum membro encontrado
           </h2>
-          <p className="text-[13px] text-[#5A5A5A] mt-2">
+          <p className="text-[13px] text-[var(--c-muted-2)] mt-2">
             Tente ajustar os filtros
           </p>
         </div>
@@ -190,14 +190,14 @@ export function Equipe() {
               <button
                 key={member.id}
                 onClick={() => setSelectedMember(member)}
-                className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-6 flex flex-col items-center text-center hover:border-[#3A3A3A] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 transition-all duration-[250ms] text-left"
+                className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-6 flex flex-col items-center text-center hover:border-[var(--c-border-2)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 transition-all duration-[250ms] text-left"
               >
                 <img
                   src={member.avatar}
                   alt={member.name}
                   className="w-16 h-16 rounded-full mb-4"
                 />
-                <h3 className="text-[15px] font-semibold text-[#F0F0F0] tracking-[-0.3px] truncate max-w-full">
+                <h3 className="text-[15px] font-semibold text-[var(--c-text)] tracking-[-0.3px] truncate max-w-full">
                   {member.name}
                 </h3>
                 <span
@@ -218,26 +218,26 @@ export function Equipe() {
                 </span>
 
                 {/* Stats */}
-                <div className="flex items-center justify-around w-full mt-5 pt-4 border-t border-[#2A2A2A]">
+                <div className="flex items-center justify-around w-full mt-5 pt-4 border-t border-[var(--c-border)]">
                   <div className="text-center">
-                    <div className="text-[18px] font-semibold text-[#F0F0F0]">
+                    <div className="text-[18px] font-semibold text-[var(--c-text)]">
                       {stats.active}
                     </div>
-                    <div className="text-[11px] text-[#5A5A5A]">Ativas</div>
+                    <div className="text-[11px] text-[var(--c-muted-2)]">Ativas</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-[18px] font-semibold text-[#F0F0F0]">
+                    <div className="text-[18px] font-semibold text-[var(--c-text)]">
                       {stats.completed}
                     </div>
-                    <div className="text-[11px] text-[#5A5A5A]">Concluidas</div>
+                    <div className="text-[11px] text-[var(--c-muted-2)]">Concluidas</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-[18px] font-semibold text-[#F0F0F0]">
+                    <div className="text-[18px] font-semibold text-[var(--c-text)]">
                       {stats.active + stats.completed > 0
                         ? `${((stats.completed / (stats.active + stats.completed)) * 100).toFixed(0)}%`
                         : "0%"}
                     </div>
-                    <div className="text-[11px] text-[#5A5A5A]">Taxa</div>
+                    <div className="text-[11px] text-[var(--c-muted-2)]">Taxa</div>
                   </div>
                 </div>
               </button>
@@ -254,12 +254,12 @@ export function Equipe() {
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
-            className="relative bg-[#141414] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[480px] w-[90vw] max-h-[80vh] overflow-y-auto p-6 animate-in zoom-in-95 fade-in duration-350"
+            className="relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[480px] w-[90vw] max-h-[80vh] overflow-y-auto p-6 animate-in zoom-in-95 fade-in duration-350"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setSelectedMember(null)}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[#5A5A5A] hover:text-[#F0F0F0] hover:bg-[#262626]"
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)]"
             >
               <X size={18} />
             </button>
@@ -270,7 +270,7 @@ export function Equipe() {
                 alt={selectedMember.name}
                 className="w-16 h-16 rounded-full mb-3"
               />
-              <h2 className="text-[24px] font-semibold text-[#F0F0F0] tracking-[-0.8px]">
+              <h2 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
                 {selectedMember.name}
               </h2>
               <span
@@ -292,7 +292,7 @@ export function Equipe() {
 
             {/* Member tasks */}
             <div>
-              <h3 className="text-[15px] font-semibold text-[#F0F0F0] mb-3">
+              <h3 className="text-[15px] font-semibold text-[var(--c-text)] mb-3">
                 Tarefas atribuidas
               </h3>
               {(() => {
@@ -301,7 +301,7 @@ export function Equipe() {
                 );
                 if (memberTasks.length === 0) {
                   return (
-                    <p className="text-[13px] text-[#5A5A5A]">
+                    <p className="text-[13px] text-[var(--c-muted-2)]">
                       Nenhuma tarefa atribuida
                     </p>
                   );
@@ -311,7 +311,7 @@ export function Equipe() {
                     {memberTasks.map((task) => (
                       <div
                         key={task.id}
-                        className="flex items-center gap-2 p-2 rounded-md bg-[#1E1E1E]"
+                        className="flex items-center gap-2 p-2 rounded-md bg-[var(--c-surface-3)]"
                       >
                         <span
                           className="w-2 h-2 rounded-full shrink-0"
@@ -326,7 +326,7 @@ export function Equipe() {
                                     : "#22C55E",
                           }}
                         />
-                        <span className="text-[13px] text-[#F0F0F0] flex-1 truncate">
+                        <span className="text-[13px] text-[var(--c-text)] flex-1 truncate">
                           {task.title}
                         </span>
                         <span
@@ -383,17 +383,17 @@ export function Equipe() {
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
-            className="relative bg-[#141414] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[400px] w-[90vw] p-6 animate-in zoom-in-95 fade-in duration-350"
+            className="relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[400px] w-[90vw] p-6 animate-in zoom-in-95 fade-in duration-350"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[#5A5A5A] hover:text-[#F0F0F0] hover:bg-[#262626]"
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)]"
             >
               <X size={18} />
             </button>
 
-            <h2 className="text-[20px] font-semibold text-[#F0F0F0] tracking-[-0.6px] mb-5">
+            <h2 className="text-[20px] font-semibold text-[var(--c-text)] tracking-[-0.6px] mb-5">
               Criar membro
             </h2>
 
@@ -406,7 +406,7 @@ export function Equipe() {
 
               {/* Nome */}
               <div>
-                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[var(--c-muted)] uppercase mb-1.5 block">
                   Nome completo
                 </label>
                 <input
@@ -414,13 +414,13 @@ export function Equipe() {
                   value={formName}
                   onChange={(e) => { setFormName(e.target.value); setFormError(""); }}
                   placeholder="Ex: João Silva"
-                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                  className="w-full h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[13px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]"
                 />
               </div>
 
               {/* E-mail */}
               <div>
-                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[var(--c-muted)] uppercase mb-1.5 block">
                   E-mail
                 </label>
                 <input
@@ -428,13 +428,13 @@ export function Equipe() {
                   value={formEmail}
                   onChange={(e) => { setFormEmail(e.target.value); setFormError(""); }}
                   placeholder="email@softcom.com"
-                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                  className="w-full h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[13px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]"
                 />
               </div>
 
               {/* Senha */}
               <div>
-                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[var(--c-muted)] uppercase mb-1.5 block">
                   Senha inicial
                 </label>
                 <div className="relative">
@@ -443,12 +443,12 @@ export function Equipe() {
                     value={formPassword}
                     onChange={(e) => { setFormPassword(e.target.value); setFormError(""); }}
                     placeholder="Mínimo 6 caracteres"
-                    className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 pr-10 text-[13px] text-[#F0F0F0] placeholder:text-[#5A5A5A] outline-none focus:border-[#3A3A3A]"
+                    className="w-full h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 pr-10 text-[13px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowFormPw(!showFormPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5A5A5A] hover:text-[#F0F0F0] transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)] hover:text-[var(--c-text)] transition-colors"
                   >
                     {showFormPw ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
@@ -457,13 +457,13 @@ export function Equipe() {
 
               {/* Cargo */}
               <div>
-                <label className="text-[10px] font-semibold tracking-[0.5px] text-[#8A8A8A] uppercase mb-1.5 block">
+                <label className="text-[10px] font-semibold tracking-[0.5px] text-[var(--c-muted)] uppercase mb-1.5 block">
                   Cargo
                 </label>
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value as UserRole)}
-                  className="w-full h-10 bg-[#1E1E1E] border border-[#2A2A2A] rounded-md px-3 text-[13px] text-[#F0F0F0] outline-none focus:border-[#3A3A3A] cursor-pointer"
+                  className="w-full h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[13px] text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)] cursor-pointer"
                 >
                   {roleOptions
                     .filter((r) => r.value !== "all")
@@ -476,8 +476,8 @@ export function Equipe() {
               </div>
 
               {/* Departamento (auto) */}
-              <div className="flex items-center gap-2 px-3 py-2 bg-[#1A1A1A] rounded-md border border-[#2A2A2A]">
-                <span className="text-[11px] text-[#5A5A5A]">Departamento:</span>
+              <div className="flex items-center gap-2 px-3 py-2 bg-[var(--c-surface-2)] rounded-md border border-[var(--c-border)]">
+                <span className="text-[11px] text-[var(--c-muted-2)]">Departamento:</span>
                 <span
                   className="text-[11px] font-semibold"
                   style={{ color: departmentColors[roleDepartmentMap[formRole]] }}

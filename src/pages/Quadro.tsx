@@ -194,9 +194,20 @@ export function Quadro() {
             ))}
           </div>
 
-          <DragOverlay>
+          <DragOverlay dropAnimation={{
+            duration: 220,
+            easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+          }}>
             {activeTask ? (
-              <div className="rotate-2 scale-[1.02] opacity-90">
+              <div
+                style={{
+                  transform: "rotate(3deg) scale(1.04)",
+                  boxShadow: "0 24px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(242,201,76,0.15)",
+                  borderRadius: "0.5rem",
+                  opacity: 0.96,
+                  cursor: "grabbing",
+                }}
+              >
                 <KanbanCard task={activeTask} />
               </div>
             ) : null}
