@@ -474,10 +474,78 @@ export function TaskModal() {
               </div>
             </>
           ) : (
-            /* View mode — right-rail badges */
+            /* View mode — two-column: activity left, meta right */
             <div className="flex gap-6 mb-5">
-              <div className="flex-1" />
-              <div className="w-[200px] shrink-0 space-y-3">
+              {/* Left column: description + activity/comments */}
+              <div className="flex-1 min-w-0">
+                {/* Description */}
+                {task?.description && (
+                  <div className="mb-5">
+                    <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-2">Descrição</span>
+                    <p className="text-[14px] text-[var(--c-text-2)] leading-relaxed whitespace-pre-wrap">{task.description}</p>
+                  </div>
+                )}
+
+                {/* Activity / Comments */}
+                {task && (
+                  <div className="border-t border-[#1E1E1E] pt-4">
+                    <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
+                      Atividade
+                    </label>
+                    <div className="space-y-3 mb-4 max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
+                      {sortedActivityLog.map((entry) => {
+                        const actorName = resolveActorName(entry.userId);
+                        return (
+                          <div key={entry.id} className="flex items-start gap-2.5">
+                            <img
+                              src={users.find((u) => u.id === entry.userId)?.avatar || currentUser?.avatar || ""}
+                              alt={actorName}
+                              className="w-6 h-6 rounded-full shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[13px]">
+                                <span className="font-semibold text-[#E0E0E0]">{actorName}</span>{" "}
+                                <span className="text-[#666]">{entry.details}</span>
+                              </span>
+                              <span className="text-[11px] text-[#444] ml-2">
+                                {format(entry.createdAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <img
+                        src={currentUser?.avatar}
+                        alt={currentUser?.name}
+                        className="w-7 h-7 rounded-full shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleAddComment();
+                        }}
+                        placeholder="Adicionar comentário..."
+                        className="flex-1 h-9 bg-[#1A1A1A] border border-[#242424] rounded-xl px-3.5 text-[13px] text-[#E0E0E0] placeholder:text-[#444] outline-none focus:border-[#333] transition-colors"
+                      />
+                      <button
+                        onClick={() => void handleAddComment()}
+                        disabled={!commentText.trim()}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F2C94C] text-[#0A0A0A] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F5D76A] transition-colors"
+                      >
+                        <Send size={15} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right column: metadata */}
+              <div className="w-[220px] shrink-0 space-y-3">
                 {/* Priority badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase block mb-1">Prioridade</span>
@@ -561,15 +629,15 @@ export function TaskModal() {
             </div>
           )}
 
-          {/* Activity / Comments */}
-          {task && (
+          {/* Activity / Comments (edit mode only — view mode shows inline) */}
+          {isEditing && task && (
             <>
               <div className="border-t border-[#1E1E1E] pt-5 mt-1">
                 <label className="text-[10px] font-semibold tracking-[1px] text-[#555] uppercase mb-3 block">
                   Atividade
                 </label>
                 <div className="space-y-3 mb-4">
-                  {activityLog.map((entry) => {
+                  {sortedActivityLog.map((entry) => {
                     const actorName = resolveActorName(entry.userId);
                     return (
                       <div key={entry.id} className="flex items-start gap-2.5">

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Session } from "@supabase/supabase-js";
 import type {
   User,
@@ -139,6 +140,11 @@ interface AppState {
   logout: () => Promise<void>;
   initAuth: () => Promise<void>;
 
+  // Realtime
+  _realtimeChannel: RealtimeChannel | null;
+  subscribeRealtime: () => void;
+  unsubscribeRealtime: () => void;
+
   // Users
   users: User[];
   fetchUsers: () => Promise<void>;
@@ -223,6 +229,7 @@ interface AppState {
 export const useStore = create<AppState>((set, get) => {
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_OUT" || !session) {
+      get().unsubscribeRealtime();
       set({
         currentUser: null,
         isAuthenticated: false,
@@ -243,8 +250,10 @@ export const useStore = create<AppState>((set, get) => {
     set({ currentUser: user, isAuthenticated: true });
     void get().fetchUsers();
     void get().fetchNotifications(user.id);
+    get().subscribeRealtime();
   },
   logout: async () => {
+    get().unsubscribeRealtime();
     await supabase.auth.signOut();
     set({
       currentUser: null,
@@ -288,6 +297,63 @@ export const useStore = create<AppState>((set, get) => {
     set({ currentUser: user, isAuthenticated: true, authLoading: false });
     void get().fetchUsers();
     void get().fetchNotifications(user.id);
+    get().subscribeRealtime();
+  },
+
+  // Realtime
+  _realtimeChannel: null,
+  subscribeRealtime: () => {
+    // Avoid duplicate subscriptions
+    if (get()._realtimeChannel) return;
+
+    const channel = supabase
+      .channel("tasks-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tasks" },
+        (payload) => {
+          const newTask = toTask(payload.new as TaskRow);
+          set((state) => {
+            // Avoid duplicates (we may have added it optimistically)
+            if (state.tasks.some((t) => t.id === newTask.id)) return state;
+            return { tasks: [newTask, ...state.tasks] };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tasks" },
+        (payload) => {
+          const updatedTask = toTask(payload.new as TaskRow);
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === updatedTask.id
+                ? { ...updatedTask, comments: t.comments, activityLog: t.activityLog }
+                : t
+            ),
+          }));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tasks" },
+        (payload) => {
+          const deletedId = (payload.old as { id: string }).id;
+          set((state) => ({
+            tasks: state.tasks.filter((t) => t.id !== deletedId),
+          }));
+        }
+      )
+      .subscribe();
+
+    set({ _realtimeChannel: channel });
+  },
+  unsubscribeRealtime: () => {
+    const channel = get()._realtimeChannel;
+    if (channel) {
+      supabase.removeChannel(channel);
+      set({ _realtimeChannel: null });
+    }
   },
 
   // Users
