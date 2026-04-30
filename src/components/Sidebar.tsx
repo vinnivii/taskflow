@@ -147,10 +147,10 @@ export function Sidebar() {
           {expanded && (
             <div className="ml-3 overflow-hidden">
               <div className="text-[var(--c-text)] font-semibold text-[15px] tracking-[-0.3px] leading-5 whitespace-nowrap">
-                Softcom
+                {import.meta.env.VITE_APP_NAME_EMPRESA}
               </div>
               <div className="text-[var(--c-muted-2)] text-[11px] tracking-[0.5px] leading-[14px] whitespace-nowrap">
-                TaskFlow
+                {import.meta.env.VITE_APP_NAME}
               </div>
             </div>
           )}
