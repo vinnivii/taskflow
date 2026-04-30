@@ -181,7 +181,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
           )}
         </div>
       </div>
+      </div>
     </div>
-  </div>
   );
 }
