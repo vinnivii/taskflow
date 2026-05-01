@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Search, Plus, Bell, X, Sun, Moon } from "lucide-react";
+import { Search, Plus, Bell, X, Sun, Moon, Menu } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TopHeaderProps {
   title: string;
@@ -17,51 +18,97 @@ export function TopHeader({ title }: TopHeaderProps) {
   const markNotificationRead = useStore((s) => s.markNotificationRead);
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
+  const toggleMobileSidebar = useStore((s) => s.toggleMobileSidebar);
   const perms = usePermissions();
+  const isMobile = useIsMobile();
 
   const [searchFocused, setSearchFocused] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   if (!currentUser) return null;
 
   return (
-    <header className="header-light h-16 bg-[var(--c-surface)] border-b border-[var(--c-border)] flex items-center justify-between px-6 shrink-0">
-      {/* Left: Page title */}
-      <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px] leading-[30px]">
-        {title}
-      </h1>
-
-      {/* Center: Search */}
-      <div
-        className={`relative transition-all duration-[150ms] ${
-          searchFocused ? "w-[400px]" : "w-[300px]"
-        }`}
-      >
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)]" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
-          placeholder="Buscar tarefas, IDs ou responsaveis..."
-          className="w-full h-9 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md pl-9 pr-8 text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none transition-all focus:border-[var(--c-border-2)] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)]"
-        />
-        {searchQuery && (
+    <header className="header-light h-16 bg-[var(--c-surface)] border-b border-[var(--c-border)] flex items-center justify-between px-4 md:px-6 shrink-0">
+      {/* Left */}
+      <div className="flex items-center gap-3">
+        {isMobile && (
           <button
-            onClick={() => setSearchQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)] hover:text-[var(--c-text)]"
+            onClick={toggleMobileSidebar}
+            className="w-9 h-9 flex items-center justify-center text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] rounded-md transition-colors"
           >
-            <X size={14} />
+            <Menu size={20} />
           </button>
         )}
+        <h1 className="text-[18px] md:text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px] leading-[30px]">
+          {title}
+        </h1>
       </div>
 
+      {/* Center: Search — hidden on mobile unless opened */}
+      {!isMobile && (
+        <div
+          className={`relative transition-all duration-[150ms] ${
+            searchFocused ? "w-[400px]" : "w-[300px]"
+          }`}
+        >
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Buscar tarefas, IDs ou responsaveis..."
+            className="w-full h-9 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md pl-9 pr-8 text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none transition-all focus:border-[var(--c-border-2)] focus:shadow-[0_0_0_3px_rgba(242,201,76,0.15)]"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)] hover:text-[var(--c-text)]"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Mobile search overlay */}
+      {isMobile && mobileSearchOpen && (
+        <div className="absolute left-0 top-0 w-full h-16 bg-[var(--c-surface)] z-20 flex items-center px-4 gap-2 border-b border-[var(--c-border)]">
+          <Search size={16} className="text-[var(--c-muted-2)] shrink-0" />
+          <input
+            autoFocus
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar tarefas..."
+            className="flex-1 h-9 bg-transparent text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none"
+          />
+          <button
+            onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); }}
+            className="text-[var(--c-muted-2)] hover:text-[var(--c-text)]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {/* Right cluster */}
-      <div className="flex items-center gap-3">
-        {/* Create Task Button */}
-        {perms.canCreateTask() && (
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* Mobile search icon */}
+        {isMobile && (
+          <button
+            onClick={() => setMobileSearchOpen(true)}
+            className="w-9 h-9 flex items-center justify-center text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] rounded-md transition-colors"
+          >
+            <Search size={18} />
+          </button>
+        )}
+
+        {/* Botão Criar Tarefa — somente para desktop */}
+        {!isMobile && perms.canCreateTask() && (
           <button
             onClick={() => openTaskModal("create", null, "novo")}
             className="flex items-center gap-2 h-9 px-4 bg-[#F2C94C] hover:bg-[#F5D76A] text-[#0A0A0A] text-[13px] font-semibold rounded-md transition-all hover:-translate-y-px"
@@ -95,7 +142,7 @@ export function TopHeader({ title }: TopHeaderProps) {
           {notifOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
-              <div className="absolute right-0 top-12 w-80 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.15)] z-50 overflow-hidden">
+              <div className={`absolute right-0 top-12 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.15)] z-50 overflow-hidden ${isMobile ? "w-[calc(100vw-2rem)]" : "w-80"}`}>
                 <div className="px-4 py-3 border-b border-[var(--c-border)] flex items-center justify-between">
                   <span className="text-[var(--c-text)] text-[13px] font-semibold">Notificações</span>
                   {unreadCount > 0 && (

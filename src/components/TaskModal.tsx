@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   X,
   Send,
@@ -87,6 +88,7 @@ export function TaskModal() {
   } = useStore();
 
   const perms = usePermissions();
+  const isMobile = useIsMobile();
 
   const existingTask = useMemo(() => {
     if (taskModalMode === "create") return null;
@@ -332,11 +334,12 @@ export function TaskModal() {
 
   return (
     <>
-    <div className="fixed inset-0 z-40 flex items-center justify-center" onClick={closeTaskModal}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className={`fixed inset-0 z-40 flex ${isMobile ? "items-end" : "items-center"} justify-center`} onClick={closeTaskModal}>
+      {!isMobile && <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />}
+      {isMobile && <div className="absolute inset-0 bg-black/50" />}
 
       <div
-        className="relative bg-[var(--c-surface)] rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.7)] max-w-[780px] w-[92vw] max-h-[88vh] flex flex-col overflow-hidden"
+        className={`relative bg-[var(--c-surface)] flex flex-col overflow-hidden ${isMobile ? "w-full h-[96vh] rounded-t-2xl rounded-b-none" : "rounded-2xl max-w-[780px] w-[92vw] max-h-[88vh] shadow-[0_24px_64px_rgba(0,0,0,0.7)]"}`}
         style={{ animation: "modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -428,7 +431,7 @@ export function TaskModal() {
                 className="w-full min-h-[90px] bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl p-3.5 text-[14px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] resize-vertical transition-colors mb-6"
               />
 
-              <div className="grid grid-cols-2 gap-4 mb-5">
+              <div className={`grid gap-4 mb-5 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
                 {/* Priority */}
                 <div>
                   <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Prioridade</label>
@@ -579,8 +582,8 @@ export function TaskModal() {
               </div>
             </>
           ) : (
-            /* View mode — two-column: activity left, meta right */
-            <div className="flex gap-6 mb-5">
+            /* View mode — two-column desktop, single-column mobile */
+            <div className={`flex mb-5 ${isMobile ? "flex-col gap-5" : "gap-6"}`}>
               {/* Left column: description + activity/comments */}
               <div className="flex-1 min-w-0">
                 {/* Description */}
@@ -689,7 +692,7 @@ export function TaskModal() {
               </div>
 
               {/* Right column: metadata */}
-              <div className="w-[220px] shrink-0 space-y-3">
+              <div className={`${isMobile ? "w-full border-t border-[var(--c-border)] pt-4" : "w-[220px] shrink-0"} space-y-3`}>
                 {/* Priority badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Prioridade</span>

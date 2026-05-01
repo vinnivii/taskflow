@@ -4,6 +4,7 @@ import {
   ChevronDown,
   AlertTriangle,
   ClipboardList,
+  Clock,
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,6 +12,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { FilterBar } from "@/components/FilterBar";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +46,7 @@ export function Tarefas() {
   const unarchiveTask = useStore((s) => s.unarchiveTask);
   const addToast = useStore((s) => s.addToast);
   const perms = usePermissions();
+  const isMobile = useIsMobile();
 
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -177,6 +180,75 @@ export function Tarefas() {
     { id: "status" as SortColumn, label: "Status" },
     { id: "dueDate" as SortColumn, label: "Prazo" },
   ];
+
+  if (isMobile) {
+    return (
+      <AppLayout title="Tarefas">
+        <div className="mb-4">
+          <FilterBar />
+        </div>
+        <div className="flex flex-col gap-2">
+          {paginatedTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <ClipboardList size={32} className="text-[var(--c-muted-3)] mb-3" />
+              <p className="text-[var(--c-muted-2)] text-[14px]">Nenhuma tarefa encontrada</p>
+            </div>
+          ) : paginatedTasks.map((task) => {
+            const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
+            const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && task.status !== "concluido";
+            return (
+              <div
+                key={task.id}
+                onClick={() => openTaskModal("view", task.id)}
+                className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-xl p-4 cursor-pointer active:bg-[var(--c-surface-2)] transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-mono text-[var(--c-muted-2)]">#{task.idTask}{task.idRfc ? ` · RFC-${task.idRfc}` : ""}</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${statusColors[task.status]}20`, color: statusColors[task.status] }}>
+                    {statusDisplayNames[task.status]}
+                  </span>
+                </div>
+                <p className="text-[14px] font-semibold text-[var(--c-text)] leading-snug mb-2 line-clamp-2">{task.title}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${priorityColors[task.priority]}20`, color: priorityColors[task.priority] }}>
+                    {priorityDisplayNames[task.priority]}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {task.dueDate && (
+                      <span className={`flex items-center gap-1 text-[11px] ${isOverdue ? "text-[#EF4444]" : "text-[var(--c-muted-2)]"}`}>
+                        <Clock size={11} />
+                        {format(task.dueDate, "dd/MM", { locale: ptBR })}
+                      </span>
+                    )}
+                    {assignee && <img src={assignee.avatar} alt={assignee.name} className="w-6 h-6 rounded-full" title={assignee.name} />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 gap-3">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="flex-1 h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-lg text-[13px] text-[var(--c-muted)] disabled:opacity-40 transition-colors"
+            >
+              Anterior
+            </button>
+            <span className="text-[12px] text-[var(--c-muted-2)] shrink-0">{currentPage} / {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="flex-1 h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-lg text-[13px] text-[var(--c-muted)] disabled:opacity-40 transition-colors"
+            >
+              Próximo
+            </button>
+          </div>
+        )}
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Tarefas">

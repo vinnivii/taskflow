@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import logoImg from "@/assets/logo.png";
 import { NavLink, useLocation } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   LayoutDashboard,
   ListChecks,
@@ -31,9 +32,12 @@ export function Sidebar() {
   const location = useLocation();
   const expanded = useStore((s) => s.sidebarExpanded);
   const toggle = useStore((s) => s.toggleSidebar);
+  const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
+  const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
   const currentUser = useStore((s) => s.currentUser);
   const logout = useStore((s) => s.logout);
   const perms = usePermissions();
+  const isMobile = useIsMobile();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -134,8 +138,10 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className="sidebar-light flex flex-col h-screen bg-[var(--c-surface)] border-r border-[var(--c-border)] transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] shrink-0"
-        style={{ width: expanded ? 220 : 64 }}
+        className={`sidebar-light flex flex-col h-screen bg-[var(--c-surface)] border-r border-[var(--c-border)] transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] shrink-0 ${isMobile ? "fixed left-0 top-0 z-40 w-[220px]" : ""}`}
+        style={isMobile
+          ? { transform: mobileSidebarOpen ? "translateX(0)" : "translateX(-100%)" }
+          : { width: expanded ? 220 : 64 }}
       >
         {/* Logo */}
         <div className="flex items-center px-4 h-16 border-b border-[var(--c-border)]">
@@ -165,6 +171,7 @@ export function Sidebar() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={() => isMobile && closeMobileSidebar()}
                 className={({ isActive: active }) =>
                   `flex items-center gap-3 px-3 h-10 rounded-md transition-all duration-[150ms] group relative ${
                     active
@@ -174,12 +181,12 @@ export function Sidebar() {
                 }
               >
                 <item.icon size={20} className="shrink-0 group-hover:animate-icon-wiggle" />
-                {expanded && (
+                {(expanded || isMobile) && (
                   <span className="text-[13px] font-medium leading-4 whitespace-nowrap overflow-hidden">
                     {item.label}
                   </span>
                 )}
-                {!expanded && (
+                {!expanded && !isMobile && (
                   <div className="absolute left-full ml-2 px-2 py-1 bg-[var(--c-hover)] text-[var(--c-text)] text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap border border-[var(--c-border)]">
                     {item.label}
                   </div>
@@ -202,7 +209,7 @@ export function Sidebar() {
               alt={currentUser.name}
               className="w-7 h-7 rounded-full shrink-0 group-hover:animate-icon-pulse-ring"
             />
-            {expanded && (
+            {(expanded || isMobile) && (
               <div className="overflow-hidden">
                 <div className="text-[var(--c-text)] text-[11px] font-medium leading-4 truncate">
                   {currentUser.name}
@@ -212,7 +219,7 @@ export function Sidebar() {
                 </div>
               </div>
             )}
-            {!expanded && (
+            {!expanded && !isMobile && (
               <div className="absolute left-full ml-2 px-2 py-1 bg-[var(--c-hover)] text-[var(--c-text)] text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap border border-[var(--c-border)]">
                 Ver perfil
               </div>
@@ -226,26 +233,28 @@ export function Sidebar() {
             className="flex items-center justify-center gap-2 py-2 rounded-md text-[var(--c-muted-2)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors group relative w-full"
           >
             <LogOut size={16} className="shrink-0 group-hover:animate-icon-shake" />
-            {expanded && (
+            {(expanded || isMobile) && (
               <span className="text-[11px] font-medium">Sair</span>
             )}
-            {!expanded && (
+            {!expanded && !isMobile && (
               <div className="absolute left-full ml-2 px-2 py-1 bg-[var(--c-hover)] text-[var(--c-text)] text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap border border-[var(--c-border)]">
                 Sair
               </div>
             )}
           </button>
 
-          {/* Collapse toggle */}
-          <button
-            onClick={toggle}
-            className="flex items-center justify-center w-full h-8 rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors group"
-          >
-            {expanded
-              ? <ChevronLeft size={16} className="group-hover:animate-icon-bounce" />
-              : <ChevronRight size={16} className="group-hover:animate-icon-bounce" />
-            }
-          </button>
+          {/* Collapse toggle — desktop only */}
+          {!isMobile && (
+            <button
+              onClick={toggle}
+              className="flex items-center justify-center w-full h-8 rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors group"
+            >
+              {expanded
+                ? <ChevronLeft size={16} className="group-hover:animate-icon-bounce" />
+                : <ChevronRight size={16} className="group-hover:animate-icon-bounce" />
+              }
+            </button>
+          )}
         </div>
       </aside>
 

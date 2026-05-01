@@ -3,8 +3,10 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -15,8 +17,38 @@ import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCard } from "@/components/KanbanCard";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { statusOrder, statusColors, statusDisplayNames } from "@/types";
 import type { Task, TaskStatus } from "@/types";
+
+function MobileStatusTab({
+  status, count, isActive, isDragging, onClick,
+}: {
+  status: TaskStatus; count: number; isActive: boolean; isDragging: boolean; onClick: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onClick}
+      className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+      style={{
+        background: isOver
+          ? statusColors[status]
+          : isActive
+          ? statusColors[status]
+          : isDragging
+          ? `${statusColors[status]}30`
+          : "var(--c-surface-3)",
+        color: isOver || isActive ? "#fff" : isDragging ? statusColors[status] : "var(--c-muted)" as string,
+        outline: isOver ? `2px solid ${statusColors[status]}` : undefined,
+        transform: isOver ? "scale(1.06)" : undefined,
+      }}
+    >
+      {statusDisplayNames[status]} ({count})
+    </button>
+  );
+}
 
 export function Quadro() {
   const tasks = useStore((s) => s.tasks);
@@ -27,12 +59,13 @@ export function Quadro() {
   const addToast = useStore((s) => s.addToast);
   const perms = usePermissions();
 
+  const isMobile = useIsMobile();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeColumn, setActiveColumn] = useState<TaskStatus>("novo");
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -173,6 +206,68 @@ export function Quadro() {
   }, []);
 
   const totalTasks = filteredTasks.length;
+
+  if (isMobile) {
+    return (
+      <AppLayout title="Quadro">
+        <div className="flex flex-col h-full">
+          <div className="mb-4">
+            <FilterBar />
+          </div>
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            {/* Status tabs — also act as drop zones when dragging */}
+            <div className="flex overflow-x-auto gap-2 pb-3 mb-4 scrollbar-none">
+              {statusOrder.map((s) => (
+                <MobileStatusTab
+                  key={s}
+                  status={s}
+                  count={tasksByColumn[s].length}
+                  isActive={activeColumn === s}
+                  isDragging={!!activeTask}
+                  onClick={() => setActiveColumn(s)}
+                />
+              ))}
+            </div>
+            {/* Single column view */}
+            <div className="flex flex-col gap-3 pb-20 overflow-y-auto flex-1">
+              {tasksByColumn[activeColumn].length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="text-[var(--c-muted-2)] text-[13px]">Nenhuma tarefa</div>
+                  {perms.canCreateInColumn(activeColumn) && (
+                    <button
+                      onClick={() => openTaskModal("create", null, activeColumn)}
+                      className="mt-3 text-[#F2C94C] text-[12px] font-medium hover:underline"
+                    >
+                      Criar tarefa
+                    </button>
+                  )}
+                </div>
+              ) : (
+                tasksByColumn[activeColumn].map((task) => (
+                  <KanbanCard key={task.id} task={task} />
+                ))
+              )}
+            </div>
+            <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+              {activeTask ? (
+                <div style={{ transform: "scale(1.03)", opacity: 0.95 }}>
+                  <KanbanCard task={activeTask} />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+          {perms.canCreateInColumn(activeColumn) && (
+            <button
+              onClick={() => openTaskModal("create", null, activeColumn)}
+              className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-[#F2C94C] text-[#0A0A0A] flex items-center justify-center shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:bg-[#F5D76A] transition-colors z-20"
+            >
+              <Plus size={24} />
+            </button>
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Quadro">

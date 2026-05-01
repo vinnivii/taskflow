@@ -221,6 +221,9 @@ interface AppState {
   // Sidebar
   sidebarExpanded: boolean;
   toggleSidebar: () => void;
+  mobileSidebarOpen: boolean;
+  toggleMobileSidebar: () => void;
+  closeMobileSidebar: () => void;
 
   // Theme
   theme: "dark" | "light";
@@ -855,6 +858,10 @@ export const useStore = create<AppState>((set, get) => {
   sidebarExpanded: false,
   toggleSidebar: () =>
     set((state) => ({ sidebarExpanded: !state.sidebarExpanded })),
+  mobileSidebarOpen: false,
+  toggleMobileSidebar: () =>
+    set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
+  closeMobileSidebar: () => set({ mobileSidebarOpen: false }),
 
   theme: (localStorage.getItem("tf_theme") as "dark" | "light") || "dark",
   toggleTheme: () =>
