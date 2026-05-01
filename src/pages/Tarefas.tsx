@@ -83,13 +83,29 @@ export function Tarefas() {
       result = result.filter((t) => t.assigneeId === currentUserId);
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.id.toLowerCase().includes(q) ||
-          t.title.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q)
-      );
+      const q = searchQuery.trim().toLowerCase();
+      if (/^#\d+$/.test(q)) {
+        const num = parseInt(q.slice(1), 10);
+        result = result.filter((t) => t.idTask === num);
+      } else if (/^rfc[-\s]?\d+$/i.test(q)) {
+        const num = parseInt(q.replace(/^rfc[-\s]?/i, ""), 10);
+        result = result.filter((t) => t.idRfc === num);
+      } else if (/^\d+$/.test(q)) {
+        const num = parseInt(q, 10);
+        result = result.filter(
+          (t) =>
+            t.idTask === num ||
+            t.idRfc === num ||
+            t.title.toLowerCase().includes(q) ||
+            t.description.toLowerCase().includes(q)
+        );
+      } else {
+        result = result.filter(
+          (t) =>
+            t.title.toLowerCase().includes(q) ||
+            t.description.toLowerCase().includes(q)
+        );
+      }
     }
 
     if (sortColumn) {
@@ -226,8 +242,13 @@ export function Tarefas() {
                         <div className="text-[14px] text-[var(--c-text)] font-medium truncate max-w-[280px]">
                           {task.title}
                         </div>
-                        <div className="text-[11px] text-[var(--c-muted-2)] font-mono mt-0.5">
-                          {task.id}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-[var(--c-muted-2)] font-mono">#{task.idTask}</span>
+                          {task.idRfc && (
+                            <span className="text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded bg-[var(--c-surface-3)] text-[var(--c-muted)]">
+                              RFC-{task.idRfc}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">

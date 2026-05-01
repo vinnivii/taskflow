@@ -103,6 +103,7 @@ export function TaskModal() {
   const [dueDate, setDueDate] = useState<string>("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [idRfc, setIdRfc] = useState<number | null>(null);
   const [commentText, setCommentText] = useState("");
   const [commentImage, setCommentImage] = useState<File | null>(null);
   const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function TaskModal() {
       setAssigneeId(existingTask.assigneeId);
       setDueDate(existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : "");
       setTags(existingTask.tags);
+      setIdRfc(existingTask.idRfc ?? null);
     } else if (taskModalMode === "create") {
       setTitle("");
       setDescription("");
@@ -139,6 +141,7 @@ export function TaskModal() {
       setAssigneeId(currentUser?.id || null);
       setDueDate("");
       setTags([]);
+      setIdRfc(null);
     }
   }, [existingTask, taskModalMode, taskModalDefaultStatus, currentUser?.department]);
 
@@ -171,6 +174,8 @@ export function TaskModal() {
         dueDate: dueDate ? new Date(dueDate) : null,
         tags,
         displayId: "",
+        idTask: 0,
+        idRfc,
         attachmentsCount: 0,
         archived: false,
         archivedAt: null,
@@ -197,6 +202,7 @@ export function TaskModal() {
       if (dueDate !== (existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : ""))
         updates.dueDate = dueDate ? new Date(dueDate) : null;
       if (JSON.stringify(tags) !== JSON.stringify(existingTask.tags)) updates.tags = tags;
+      if (idRfc !== existingTask.idRfc) updates.idRfc = idRfc;
 
       if (Object.keys(updates).length > 0) {
         const updated = await updateTask(existingTask.id, updates);
@@ -370,7 +376,10 @@ export function TaskModal() {
               {headerBadge.label}
             </span>
             {task && (
-              <span className="text-[11px] font-mono text-[var(--c-muted-3)] select-all">{task.displayId || task.id.slice(0, 8)}</span>
+              <span className="text-[11px] font-mono text-[var(--c-muted-3)] select-all">
+                #{task.idTask}
+                {task.idRfc && <span className="ml-2 text-[var(--c-muted-2)]">RFC-{task.idRfc}</span>}
+              </span>
             )}
           </div>
           <button
@@ -489,6 +498,19 @@ export function TaskModal() {
                       className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg pl-8 pr-3 text-[13px] text-[var(--c-text-2)] outline-none focus:border-[var(--c-border-2)] transition-colors [color-scheme:dark]"
                     />
                   </div>
+                </div>
+
+                {/* ID RFC */}
+                <div>
+                  <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">ID RFC</label>
+                  <input
+                    type="number"
+                    value={idRfc ?? ""}
+                    onChange={(e) => setIdRfc(e.target.value ? Number(e.target.value) : null)}
+                    placeholder="Ex: 1042"
+                    min={1}
+                    className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg px-3 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors font-mono"
+                  />
                 </div>
 
                 {/* Department */}
@@ -699,6 +721,13 @@ export function TaskModal() {
                     <span className="text-[13px] text-[var(--c-muted-2)]">Não definido</span>
                   )}
                 </MetaRow>
+                {/* ID RFC */}
+                {task?.idRfc && (
+                  <MetaRow label="ID RFC">
+                    <span className="font-mono text-[13px] text-[var(--c-text-2)]">RFC-{task.idRfc}</span>
+                  </MetaRow>
+                )}
+
                 {/* Department badge */}
                 <div>
                   <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Setor</span>

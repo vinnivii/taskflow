@@ -60,9 +60,17 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
       {/* Top row: ID */}
       <div className="flex justify-between items-center mb-1.5">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-[var(--c-muted-2)] font-mono">
-          {task.id}
+        <span className="text-[15px] font-medium tracking-[0.5px] text-[var(--c-muted-2)] font-mono">
+          #{task.idTask}
         </span>
+        {task.idRfc && (
+          <span
+            className="text-[15px] font-bold font-mono px-2 py-0.5 rounded-md"
+            style={{ color: "var(--c-rfc-text)", background: "var(--c-rfc-bg)", border: "1px solid var(--c-rfc-border)" }}
+          >
+            RFC-{task.idRfc}
+          </span>
+        )}
       </div>
 
       {/* Title */}

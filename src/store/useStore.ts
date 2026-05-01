@@ -42,6 +42,8 @@ const isUuid = (value: string | null | undefined) =>
 type TaskRow = {
   id: string;
   display_id: string;
+  id_task: number;
+  id_rfc: number | null;
   title: string;
   description: string;
   priority: TaskPriority;
@@ -90,6 +92,8 @@ type NotificationRow = {
 const toTask = (row: TaskRow): Task => ({
   id: row.id,
   displayId: row.display_id,
+  idTask: row.id_task ?? 0,
+  idRfc: row.id_rfc ?? null,
   title: row.title,
   description: row.description,
   priority: row.priority,
@@ -139,6 +143,7 @@ const toTaskUpdate = (updates: Partial<Task>) => {
   if (updates.dueDate !== undefined) {
     payload.due_date = updates.dueDate ? updates.dueDate.toISOString() : null;
   }
+  if (updates.idRfc !== undefined) payload.id_rfc = updates.idRfc;
   if (updates.tags !== undefined) payload.tags = updates.tags;
   if (updates.attachmentsCount !== undefined) payload.attachments_count = updates.attachmentsCount;
   if (updates.archived !== undefined) payload.archived = updates.archived;

@@ -54,6 +54,8 @@ export interface ActivityEntry {
 export interface Task {
   id: string;
   displayId: string;
+  idTask: number;
+  idRfc: number | null;
   title: string;
   description: string;
   priority: TaskPriority;

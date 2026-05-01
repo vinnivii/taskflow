@@ -10,16 +10,19 @@ VALUES (
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Allow authenticated users to upload
-CREATE POLICY IF NOT EXISTS "comment_images_insert"
+DROP POLICY IF EXISTS "comment_images_insert" ON storage.objects;
+CREATE POLICY "comment_images_insert"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'comment-images' AND auth.role() = 'authenticated');
 
 -- Allow public read
-CREATE POLICY IF NOT EXISTS "comment_images_select"
+DROP POLICY IF EXISTS "comment_images_select" ON storage.objects;
+CREATE POLICY "comment_images_select"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'comment-images');
 
 -- Allow owner to delete their own files
-CREATE POLICY IF NOT EXISTS "comment_images_delete"
+DROP POLICY IF EXISTS "comment_images_delete" ON storage.objects;
+CREATE POLICY "comment_images_delete"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'comment-images' AND auth.uid()::text = (storage.foldername(name))[1]);

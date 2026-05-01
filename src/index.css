@@ -41,6 +41,9 @@
     --c-muted:     #8A8A8A;
     --c-muted-2:   #5A5A5A;
     --c-muted-3:   #444444;
+    --c-rfc-text:  #F2C94C;
+    --c-rfc-bg:    rgba(242,201,76,0.12);
+    --c-rfc-border:rgba(242,201,76,0.35);
   }
 
   :root.light {
@@ -73,6 +76,9 @@
     --c-muted:     #5C6977;
     --c-muted-2:   #8C9BAA;
     --c-muted-3:   #C4CDD6;
+    --c-rfc-text:  #92680A;
+    --c-rfc-bg:    rgba(242,201,76,0.18);
+    --c-rfc-border:rgba(180,130,10,0.4);
   }
 
   * {

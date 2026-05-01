@@ -62,13 +62,29 @@ export function Quadro() {
 
     // Search
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.id.toLowerCase().includes(q) ||
-          t.title.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q)
-      );
+      const q = searchQuery.trim().toLowerCase();
+      if (/^#\d+$/.test(q)) {
+        const num = parseInt(q.slice(1), 10);
+        result = result.filter((t) => t.idTask === num);
+      } else if (/^rfc[-\s]?\d+$/i.test(q)) {
+        const num = parseInt(q.replace(/^rfc[-\s]?/i, ""), 10);
+        result = result.filter((t) => t.idRfc === num);
+      } else if (/^\d+$/.test(q)) {
+        const num = parseInt(q, 10);
+        result = result.filter(
+          (t) =>
+            t.idTask === num ||
+            t.idRfc === num ||
+            t.title.toLowerCase().includes(q) ||
+            t.description.toLowerCase().includes(q)
+        );
+      } else {
+        result = result.filter(
+          (t) =>
+            t.title.toLowerCase().includes(q) ||
+            t.description.toLowerCase().includes(q)
+        );
+      }
     }
 
     // Sort by priority then date
