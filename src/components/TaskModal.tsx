@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Loader2,
   ImageIcon,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -382,12 +383,23 @@ export function TaskModal() {
               </span>
             )}
           </div>
-          <button
-            onClick={closeTaskModal}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface-3)] transition-colors"
-          >
-            <X size={17} />
-          </button>
+          <div className="flex items-center gap-2">
+            {taskModalMode === "view" && task && perms.canEditTaskModal() && (
+              <button
+                onClick={() => useStore.getState().openTaskModal("edit", task.id)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--c-surface-3)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-[12px] font-semibold transition-colors border border-[var(--c-border)]"
+              >
+                <Pencil size={13} />
+                Editar
+              </button>
+            )}
+            <button
+              onClick={closeTaskModal}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface-3)] transition-colors"
+            >
+              <X size={17} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -509,7 +521,7 @@ export function TaskModal() {
                     onChange={(e) => setIdRfc(e.target.value ? Number(e.target.value) : null)}
                     placeholder="Ex: 1042"
                     min={1}
-                    className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg px-3 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors font-mono"
+                    className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg px-3 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                 </div>
 

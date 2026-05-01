@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { UserRole, TaskStatus } from "@/types";
+import type { TaskStatus } from "@/types";
 import { useStore } from "@/store/useStore";
 
 export function usePermissions() {
@@ -13,6 +13,7 @@ export function usePermissions() {
         canCreateTask: () => false,
         canCreateInColumn: (_status: TaskStatus) => false,
         canEditTask: (_taskCreatorId?: string, _taskAssigneeId?: string | null) => false,
+        canEditTaskModal: () => false,
         canMoveToColumn: (_fromStatus: TaskStatus, _toStatus: TaskStatus) => false,
         canViewEquipe: false,
         canViewRelatorios: false,
@@ -93,10 +94,14 @@ export function usePermissions() {
       }
     };
 
+    const canEditTaskModal = (): boolean =>
+      role === "supervisor_geral" || role === "supervisor_adjunto";
+
     return {
       canCreateTask,
       canCreateInColumn,
       canEditTask,
+      canEditTaskModal,
       canMoveToColumn,
       canViewEquipe: ["supervisor_geral", "supervisor_adjunto", "tecnico"].includes(role),
       canViewRelatorios: ["supervisor_geral", "supervisor_adjunto"].includes(role),
