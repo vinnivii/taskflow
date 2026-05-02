@@ -1,11 +1,9 @@
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
 import { KanbanCard } from "./KanbanCard";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { Task, TaskStatus } from "@/types";
-import { statusColors, statusDisplayNames } from "@/types";
 
 interface KanbanColumnProps {
   status: TaskStatus;
@@ -14,6 +12,7 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
   const openTaskModal = useStore((s) => s.openTaskModal);
+  const boards = useStore((s) => s.boards);
   const perms = usePermissions();
 
   const { setNodeRef, isOver } = useDroppable({
@@ -22,8 +21,9 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
   });
 
   const canCreate = perms.canCreateInColumn(status);
-  const color = statusColors[status];
-  const title = statusDisplayNames[status];
+  const board = boards.find((b) => b.key === status);
+  const color = board?.color ?? "#8A8A8A";
+  const title = board?.name ?? status;
 
   return (
     <div className="flex flex-col min-w-[320px] max-w-[320px] shrink-0">

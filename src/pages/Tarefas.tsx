@@ -26,10 +26,8 @@ import {
 
 import {
   priorityColors,
-  statusColors,
   departmentColors,
   priorityDisplayNames,
-  statusDisplayNames,
   departmentDisplayNames,
 } from "@/types";
 import type { Task, TaskPriority, TaskStatus, Department } from "@/types";
@@ -45,6 +43,9 @@ export function Tarefas() {
   const openTaskModal = useStore((s) => s.openTaskModal);
   const unarchiveTask = useStore((s) => s.unarchiveTask);
   const addToast = useStore((s) => s.addToast);
+  const boards = useStore((s) => s.boards);
+  const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
+  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
   const perms = usePermissions();
   const isMobile = useIsMobile();
 

@@ -18,13 +18,12 @@ import { KanbanCard } from "@/components/KanbanCard";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { statusOrder, statusColors, statusDisplayNames } from "@/types";
 import type { Task, TaskStatus } from "@/types";
 
 function MobileStatusTab({
-  status, count, isActive, isDragging, onClick,
+  status, count, isActive, isDragging, onClick, color, label,
 }: {
-  status: TaskStatus; count: number; isActive: boolean; isDragging: boolean; onClick: () => void;
+  status: TaskStatus; count: number; isActive: boolean; isDragging: boolean; onClick: () => void; color: string; label: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -34,18 +33,18 @@ function MobileStatusTab({
       className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all"
       style={{
         background: isOver
-          ? statusColors[status]
+          ? color
           : isActive
-          ? statusColors[status]
+          ? color
           : isDragging
-          ? `${statusColors[status]}30`
+          ? `${color}30`
           : "var(--c-surface-3)",
-        color: isOver || isActive ? "#fff" : isDragging ? statusColors[status] : "var(--c-muted)" as string,
-        outline: isOver ? `2px solid ${statusColors[status]}` : undefined,
+        color: isOver || isActive ? "#fff" : isDragging ? color : "var(--c-muted)" as string,
+        outline: isOver ? `2px solid ${color}` : undefined,
         transform: isOver ? "scale(1.06)" : undefined,
       }}
     >
-      {statusDisplayNames[status]} ({count})
+      {label} ({count})
     </button>
   );
 }
@@ -59,9 +58,12 @@ export function Quadro() {
   const addToast = useStore((s) => s.addToast);
   const perms = usePermissions();
 
+  const boards = useStore((s) => s.boards);
+  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
+
   const isMobile = useIsMobile();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeColumn, setActiveColumn] = useState<TaskStatus>("novo");
+  const [activeColumn, setActiveColumn] = useState<TaskStatus>(boards[0]?.key ?? "novo");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -134,18 +136,14 @@ export function Quadro() {
 
   // Group by status
   const tasksByColumn = useMemo(() => {
-    const grouped: Record<TaskStatus, Task[]> = {
-      novo: [],
-      em_andamento: [],
-      em_revisao: [],
-      concluido: [],
-      bloqueado: [],
-    };
+    const grouped: Record<string, Task[]> = {};
+    for (const b of boards) grouped[b.key] = [];
     for (const task of filteredTasks) {
+      if (!grouped[task.status]) grouped[task.status] = [];
       grouped[task.status].push(task);
     }
     return grouped;
-  }, [filteredTasks]);
+  }, [filteredTasks, boards]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.id);
@@ -217,14 +215,16 @@ export function Quadro() {
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             {/* Status tabs — also act as drop zones when dragging */}
             <div className="flex overflow-x-auto gap-2 pb-3 mb-4 scrollbar-none">
-              {statusOrder.map((s) => (
+              {boards.map((b) => (
                 <MobileStatusTab
-                  key={s}
-                  status={s}
-                  count={tasksByColumn[s].length}
-                  isActive={activeColumn === s}
+                  key={b.key}
+                  status={b.key}
+                  count={tasksByColumn[b.key]?.length ?? 0}
+                  isActive={activeColumn === b.key}
                   isDragging={!!activeTask}
-                  onClick={() => setActiveColumn(s)}
+                  onClick={() => setActiveColumn(b.key)}
+                  color={b.color}
+                  label={b.name}
                 />
               ))}
             </div>
@@ -299,11 +299,11 @@ export function Quadro() {
             ref={boardRef}
             className="flex gap-4 overflow-x-auto overflow-y-auto pb-6 flex-1 custom-scrollbar"
           >
-            {statusOrder.map((status) => (
+            {boards.map(({ key }) => (
               <KanbanColumn
-                key={status}
-                status={status}
-                tasks={tasksByColumn[status]}
+                key={key}
+                status={key}
+                tasks={tasksByColumn[key] ?? []}
               />
             ))}
           </div>

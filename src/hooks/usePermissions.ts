@@ -4,10 +4,13 @@ import { useStore } from "@/store/useStore";
 
 export function usePermissions() {
   const currentUser = useStore((state) => state.currentUser);
+  const boards = useStore((state) => state.boards);
 
   const role = currentUser?.role;
 
   const permissions = useMemo(() => {
+    const boardOrder = boards.length > 0 ? boards.map(b => b.key) : ["novo", "em_andamento", "em_revisao", "concluido", "bloqueado"];
+
     if (!role) {
       return {
         canCreateTask: () => false,
@@ -18,6 +21,7 @@ export function usePermissions() {
         canViewEquipe: false,
         canViewRelatorios: false,
         canManageUsers: false,
+        canManageBoards: false,
         canDeleteTask: false,
         canBatchEdit: false,
         canArchiveTask: () => false,
@@ -71,24 +75,24 @@ export function usePermissions() {
       }
     };
 
-    const canMoveToColumn = (
-      fromStatus: TaskStatus,
-      toStatus: TaskStatus
-    ): boolean => {
-      const statusOrder = ["novo", "em_andamento", "em_revisao", "concluido", "bloqueado"];
-      const fromIndex = statusOrder.indexOf(fromStatus);
-      const toIndex = statusOrder.indexOf(toStatus);
+    const canMoveToColumn = (fromStatus: TaskStatus, toStatus: TaskStatus): boolean => {
+      const fromIndex = boardOrder.indexOf(fromStatus);
+      const toIndex = boardOrder.indexOf(toStatus);
 
       switch (role) {
         case "supervisor_geral":
           return true;
-        case "supervisor_adjunto":
-          return toStatus !== "bloqueado";
+        case "supervisor_adjunto": {
+          const blocked = boards.find(b => b.key === "bloqueado");
+          return !blocked || toStatus !== blocked.key;
+        }
         case "tecnico":
         case "estagiario":
         case "comercial":
-        case "financeiro":
-          return toIndex >= fromIndex || (fromStatus === "bloqueado" && toIndex >= 0);
+        case "financeiro": {
+          const blockedKey = boards.find(b => b.key === "bloqueado")?.key ?? "bloqueado";
+          return toIndex >= fromIndex || (fromStatus === blockedKey && toIndex >= 0);
+        }
         default:
           return false;
       }
@@ -106,11 +110,12 @@ export function usePermissions() {
       canViewEquipe: ["supervisor_geral", "supervisor_adjunto", "tecnico"].includes(role),
       canViewRelatorios: ["supervisor_geral", "supervisor_adjunto"].includes(role),
       canManageUsers: role === "supervisor_geral",
+      canManageBoards: ["supervisor_geral", "supervisor_adjunto"].includes(role),
       canDeleteTask: ["supervisor_geral", "supervisor_adjunto"].includes(role),
       canBatchEdit: ["supervisor_geral", "supervisor_adjunto"].includes(role),
       canArchiveTask: () => ["supervisor_geral", "supervisor_adjunto"].includes(role),
     };
-  }, [role, currentUser]);
+  }, [role, currentUser, boards]);
 
   return permissions;
 }

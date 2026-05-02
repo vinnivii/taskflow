@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import type { Department, TaskPriority, TaskStatus } from "@/types";
-import { priorityColors, statusColors, departmentColors } from "@/types";
 
 const departments: { value: Department | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -18,15 +17,6 @@ const priorities: { value: TaskPriority | "all"; label: string }[] = [
   { value: "low", label: "Baixa" },
 ];
 
-const statuses: { value: TaskStatus | "all"; label: string }[] = [
-  { value: "all", label: "Todos" },
-  { value: "novo", label: "Novo" },
-  { value: "em_andamento", label: "Em Andamento" },
-  { value: "em_revisao", label: "Em Revisao" },
-  { value: "concluido", label: "Concluido" },
-  { value: "bloqueado", label: "Bloqueado" },
-];
-
 interface FilterBarProps {
   showStatusFilter?: boolean;
 }
@@ -35,6 +25,11 @@ export function FilterBar({ showStatusFilter = false }: FilterBarProps) {
   const filters = useStore((s) => s.filters);
   const setFilter = useStore((s) => s.setFilter);
   const clearFilters = useStore((s) => s.clearFilters);
+  const boards = useStore((s) => s.boards);
+  const statuses: { value: TaskStatus | "all"; label: string }[] = [
+    { value: "all", label: "Todos" },
+    ...boards.map((b) => ({ value: b.key as TaskStatus, label: b.name })),
+  ];
 
   const hasActiveFilters =
     filters.department !== "all" ||

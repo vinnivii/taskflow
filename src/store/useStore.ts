@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import type {
   User,
   Task,
+  Board,
   Comment,
   ActivityEntry,
   Notification,
@@ -14,7 +15,6 @@ import type {
 } from "@/types";
 import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { generateAvatar } from "@/utils/avatar";
-import { statusDisplayNames } from "@/types";
 
 async function createNotification(
   userId: string,
@@ -180,6 +180,13 @@ interface AppState {
     department: User["department"];
   }) => Promise<{ success: boolean; error?: string }>;
 
+  // Boards
+  boards: Board[];
+  fetchBoards: () => Promise<void>;
+  createBoard: (data: { key: string; name: string; color: string }) => Promise<boolean>;
+  updateBoard: (id: string, data: Partial<Pick<Board, "name" | "color" | "position">>) => Promise<boolean>;
+  deleteBoard: (id: string) => Promise<boolean>;
+
   // Tasks
   tasks: Task[];
   fetchTasks: () => Promise<void>;
@@ -276,6 +283,7 @@ export const useStore = create<AppState>((set, get) => {
   login: (user) => {
     set({ currentUser: user, isAuthenticated: true });
     void get().fetchUsers();
+    void get().fetchBoards();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
   },
@@ -323,6 +331,7 @@ export const useStore = create<AppState>((set, get) => {
 
     set({ currentUser: user, isAuthenticated: true, authLoading: false });
     void get().fetchUsers();
+    void get().fetchBoards();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
   },
@@ -414,6 +423,51 @@ export const useStore = create<AppState>((set, get) => {
       supabase.removeChannel(channel);
       set({ _realtimeChannel: null });
     }
+  },
+
+  // Boards
+  boards: [],
+  fetchBoards: async () => {
+    const defaultBoards: Board[] = [
+      { id: "1", key: "novo",         name: "Novo",        color: "#A855F7", position: 0 },
+      { id: "2", key: "em_andamento", name: "Em Andamento",color: "#3B82F6", position: 1 },
+      { id: "3", key: "em_revisao",   name: "Em Revisão",  color: "#F97316", position: 2 },
+      { id: "4", key: "concluido",    name: "Concluído",   color: "#22C55E", position: 3 },
+      { id: "5", key: "bloqueado",    name: "Bloqueado",   color: "#EF4444", position: 4 },
+    ];
+    const { data, error } = await supabase
+      .from("boards")
+      .select("*")
+      .order("position", { ascending: true });
+    if (error || !data || data.length === 0) {
+      set({ boards: defaultBoards });
+      return;
+    }
+    set({ boards: data as Board[] });
+  },
+  createBoard: async ({ key, name, color }) => {
+    const boards = get().boards;
+    const position = boards.length > 0 ? Math.max(...boards.map(b => b.position)) + 1 : 0;
+    const { error } = await supabase.from("boards").insert({ key, name, color, position });
+    if (error) return false;
+    await get().fetchBoards();
+    return true;
+  },
+  updateBoard: async (id, data) => {
+    const { error } = await supabase.from("boards").update(data).eq("id", id);
+    if (error) return false;
+    await get().fetchBoards();
+    return true;
+  },
+  deleteBoard: async (id) => {
+    const board = get().boards.find(b => b.id === id);
+    if (!board) return false;
+    const taskCount = get().tasks.filter(t => t.status === board.key && !t.archived).length;
+    if (taskCount > 0) return false;
+    const { error } = await supabase.from("boards").delete().eq("id", id);
+    if (error) return false;
+    await get().fetchBoards();
+    return true;
   },
 
   // Users
@@ -581,7 +635,7 @@ export const useStore = create<AppState>((set, get) => {
         void createNotification(
           prev.assigneeId,
           "Status atualizado",
-          `"${prev.title}" foi movida para ${statusDisplayNames[updates.status]}`,
+          `"${prev.title}" foi movida para ${get().boards.find(b => b.key === updates.status)?.name ?? updates.status}`,
           "status_changed",
           taskId
         );
@@ -638,7 +692,7 @@ export const useStore = create<AppState>((set, get) => {
       void createNotification(
         prev.assigneeId,
         "Status atualizado",
-        `"${prev.title}" foi movida para ${statusDisplayNames[newStatus]}`,
+        `"${prev.title}" foi movida para ${get().boards.find((b: Board) => b.key === newStatus)?.name ?? newStatus}`,
         "status_changed",
         taskId
       );

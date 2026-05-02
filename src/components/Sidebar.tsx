@@ -7,6 +7,7 @@ import {
   ListChecks,
   Users,
   BarChart3,
+  Settings,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -26,6 +27,7 @@ const navItems = [
   { to: "/tarefas", icon: ListChecks, label: "Tarefas" },
   { to: "/equipe", icon: Users, label: "Equipe", permission: "canViewEquipe" as const },
   { to: "/relatorios", icon: BarChart3, label: "Relatorios", permission: "canViewRelatorios" as const },
+  { to: "/configuracoes", icon: Settings, label: "Configurações", permission: "canManageBoards" as const },
 ];
 
 export function Sidebar() {

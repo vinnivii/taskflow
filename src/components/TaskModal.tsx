@@ -22,10 +22,8 @@ import { supabase } from "@/utils/supabase";
 
 import {
   priorityColors,
-  statusColors,
   departmentColors,
   priorityDisplayNames,
-  statusDisplayNames,
   departmentDisplayNames,
 } from "@/types";
 import type { Task, TaskPriority, TaskStatus, Department } from "@/types";
@@ -42,14 +40,6 @@ const priorityBg: Record<TaskPriority, string> = {
   high: "rgba(249,115,22,0.15)",
   medium: "rgba(59,130,246,0.15)",
   low: "rgba(34,197,94,0.15)",
-};
-
-const statusBg: Record<TaskStatus, string> = {
-  novo: "rgba(168,85,247,0.15)",
-  em_andamento: "rgba(59,130,246,0.15)",
-  em_revisao: "rgba(249,115,22,0.15)",
-  concluido: "rgba(34,197,94,0.15)",
-  bloqueado: "rgba(239,68,68,0.15)",
 };
 
 const deptBg: Record<Department, string> = {
@@ -86,6 +76,11 @@ export function TaskModal() {
     addActivityEntry,
     archiveTask,
   } = useStore();
+
+  const boards = useStore((s) => s.boards);
+  const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
+  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
+  const statusBg = Object.fromEntries(boards.map((b) => [b.key, `${b.color}26`]));
 
   const perms = usePermissions();
   const isMobile = useIsMobile();

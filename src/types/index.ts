@@ -10,12 +10,15 @@ export type Department = "comercial" | "financeiro" | "suporte";
 
 export type TaskPriority = "urgent" | "high" | "medium" | "low";
 
-export type TaskStatus =
-  | "novo"
-  | "em_andamento"
-  | "em_revisao"
-  | "concluido"
-  | "bloqueado";
+export type TaskStatus = string;
+
+export interface Board {
+  id: string;
+  key: string;
+  name: string;
+  color: string;
+  position: number;
+}
 
 export interface User {
   id: string;
@@ -114,27 +117,11 @@ export const priorityDisplayNames: Record<TaskPriority, string> = {
   low: "Baixa",
 };
 
-export const statusDisplayNames: Record<TaskStatus, string> = {
-  novo: "Novo",
-  em_andamento: "Em Andamento",
-  em_revisao: "Em Revisão",
-  concluido: "Concluído",
-  bloqueado: "Bloqueado",
-};
-
 export const priorityColors: Record<TaskPriority, string> = {
   urgent: "#EF4444",
   high: "#F2C94C",
   medium: "#3B82F6",
   low: "#22C55E",
-};
-
-export const statusColors: Record<TaskStatus, string> = {
-  novo: "#A855F7",
-  em_andamento: "#3B82F6",
-  em_revisao: "#F97316",
-  concluido: "#22C55E",
-  bloqueado: "#EF4444",
 };
 
 export const departmentColors: Record<Department, string> = {
@@ -151,13 +138,5 @@ export const roleDepartmentMap: Record<UserRole, Department> = {
   comercial: "comercial",
   financeiro: "financeiro",
 };
-
-export const statusOrder: TaskStatus[] = [
-  "novo",
-  "em_andamento",
-  "em_revisao",
-  "concluido",
-  "bloqueado",
-];
 
 export const priorityOrder: TaskPriority[] = ["urgent", "high", "medium", "low"];

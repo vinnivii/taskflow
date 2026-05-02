@@ -5,8 +5,8 @@ import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
-import { priorityColors, statusColors, departmentColors } from "@/types";
-import type { Task, TaskPriority } from "@/types";
+import { priorityColors } from "@/types";
+import type { Task } from "@/types";
 
 interface KanbanCardProps {
   task: Task;

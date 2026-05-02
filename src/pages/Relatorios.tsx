@@ -5,7 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
 
-import { statusColors, statusDisplayNames, departmentDisplayNames } from "@/types";
+import { departmentDisplayNames } from "@/types";
 import type { TaskStatus, Department } from "@/types";
 
 type DateRange = "today" | "week" | "month" | "custom";
@@ -15,6 +15,9 @@ export function Relatorios() {
 
   const tasks = useStore((s) => s.tasks);
   const users = useStore((s) => s.users);
+  const boards = useStore((s) => s.boards);
+  const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
+  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
 
   // Calculate date bounds
   const { startDate, endDate } = useMemo(() => {
@@ -68,19 +71,14 @@ export function Relatorios() {
 
   // Status distribution
   const statusDistribution = useMemo(() => {
-    const dist: Record<TaskStatus, number> = {
-      novo: 0,
-      em_andamento: 0,
-      em_revisao: 0,
-      concluido: 0,
-      bloqueado: 0,
-    };
+    const dist: Record<string, number> = Object.fromEntries(boards.map((b) => [b.key, 0]));
     for (const t of filteredTasks) {
+      if (!dist[t.status]) dist[t.status] = 0;
       dist[t.status]++;
     }
     const maxCount = Math.max(...Object.values(dist), 1);
     return { dist, maxCount };
-  }, [filteredTasks]);
+  }, [filteredTasks, boards]);
 
   // Department distribution
   const deptDistribution = useMemo(() => {
