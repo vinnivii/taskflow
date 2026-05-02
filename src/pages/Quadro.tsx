@@ -42,7 +42,6 @@ function MobileStatusTab({
         color: isOver || isActive ? "#fff" : isDragging ? color : "var(--c-muted)" as string,
         outline: isOver ? `2px solid ${color}` : undefined,
         transform: isOver ? "scale(1.06)" : undefined,
-        touchAction: "none",
       }}
     >
       {label} ({count})

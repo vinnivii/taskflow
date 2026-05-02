@@ -344,24 +344,12 @@ export function TaskModal() {
             to   { opacity: 1; transform: scale(1)    translateY(0);   }
           }
 
-          /* Minimal scrollbars (TaskModal only) */
+          /* Hide scrollbars (TaskModal) */
           .taskmodal-scroll {
-            scrollbar-width: thin;
-            scrollbar-color: var(--c-border-2) transparent;
+            scrollbar-width: none;
           }
           .taskmodal-scroll::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          .taskmodal-scroll::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          .taskmodal-scroll::-webkit-scrollbar-thumb {
-            background: var(--c-border-2);
-            border-radius: 999px;
-          }
-          .taskmodal-scroll::-webkit-scrollbar-thumb:hover {
-            background: var(--c-muted-3);
+            display: none;
           }
         `}</style>
 
@@ -401,7 +389,7 @@ export function TaskModal() {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 taskmodal-scroll">
           {/* Title */}
           <input
             type="text"
