@@ -151,7 +151,7 @@ export function Sidebar() {
             alt="Softcom"
             className="w-9 h-9 rounded-full shrink-0 object-cover"
           />
-          {expanded && (
+          {(expanded || isMobile) && (
             <div className="ml-3 overflow-hidden">
               <div className="text-[var(--c-text)] font-semibold text-[15px] tracking-[-0.3px] leading-5 whitespace-nowrap">
                 {import.meta.env.VITE_APP_NAME_EMPRESA}
@@ -163,7 +163,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navegação */}
         <nav className="flex-1 py-4 px-2 flex flex-col gap-1">
           {navItems.map((item) => {
             if (item.permission && !perms[item.permission]) return null;
@@ -196,9 +196,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Bottom: User + Logout + Collapse */}
         <div className="p-2 border-t border-[var(--c-border)] flex flex-col gap-1">
-          {/* User mini profile */}
+          {/* Miniperfil do usuário */}
           <div
             className="flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer hover:bg-[var(--c-hover)] transition-colors group relative"
             onClick={() => setProfileOpen(true)}
@@ -226,7 +225,7 @@ export function Sidebar() {
             )}
           </div>
 
-          {/* Logout button */}
+          {/* Botão sair */}
           <button
             onClick={() => void logout()}
             title="Sair"
@@ -243,7 +242,7 @@ export function Sidebar() {
             )}
           </button>
 
-          {/* Collapse toggle — desktop only */}
+          {/* Recolher/Alternar — somente para desktop */}
           {!isMobile && (
             <button
               onClick={toggle}
@@ -258,7 +257,7 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Profile modal */}
+      {/* Modal de perfil */}
       {profileOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
@@ -276,7 +275,7 @@ export function Sidebar() {
               <X size={18} />
             </button>
 
-            {/* User info */}
+            {/* Informações do usuário */}
             <div className="flex flex-col items-center mb-6">
               <div className="relative mb-4 group">
                 <img
@@ -326,7 +325,7 @@ export function Sidebar() {
             </div>
 
 
-            {/* Password change */}
+            {/* Mudar senha perfil */}
             <div className="border-t border-[var(--c-border)] pt-5 space-y-3">
               <p className="text-[11px] font-medium tracking-[0.5px] text-[var(--c-muted)] uppercase">
                 Alterar senha
