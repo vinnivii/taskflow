@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import logoImg from "@/assets/logo.png";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   LayoutDashboard,
@@ -31,7 +31,6 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const location = useLocation();
   const expanded = useStore((s) => s.sidebarExpanded);
   const toggle = useStore((s) => s.toggleSidebar);
   const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
@@ -168,7 +167,6 @@ export function Sidebar() {
         <nav className="flex-1 py-4 px-2 flex flex-col gap-1">
           {navItems.map((item) => {
             if (item.permission && !perms[item.permission]) return null;
-            const isActive = location.pathname === item.to;
             return (
               <NavLink
                 key={item.to}
@@ -268,7 +266,7 @@ export function Sidebar() {
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
-            className="relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] w-[360px] p-6 animate-in zoom-in-95 fade-in duration-350"
+            className={`relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${isMobile ? "w-[95vw]" : "w-[360px]"} p-4 md:p-6 animate-in zoom-in-95 fade-in duration-350`}
             onClick={(e) => e.stopPropagation()}
           >
             <button

@@ -43,12 +43,14 @@ export function KanbanCard({ task }: KanbanCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      onClick={() => openTaskModal("view", task.id)}
       className="group cursor-pointer pb-0.5"
     >
-      <div className="kanban-card-inner relative overflow-hidden bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-4 shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-all duration-[250ms] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:-translate-y-0.5 group-hover:border-[var(--c-border-2)]"
+      <div
+        className="kanban-card-inner relative overflow-hidden bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-4 shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-all duration-[250ms] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:-translate-y-0.5 group-hover:border-[var(--c-border-2)]"
+        {...listeners}
+        {...attributes}
+        style={{ touchAction: "none" }}
+        onClick={() => openTaskModal("view", task.id)}
       >
       {/* Priority left border */}
       <div
@@ -169,7 +171,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
                   });
                 }
               }}
-              className="text-[11px] font-semibold tracking-[0.5px] text-[#F2C94C] hover:underline"
+              className="h-8 px-2 flex items-center text-[11px] font-semibold tracking-[0.5px] text-[#F2C94C] hover:underline"
               title="Arquivar (oculta do quadro)"
             >
               Arquivar

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Users, Plus, X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
@@ -16,6 +17,7 @@ export function Equipe() {
   const users = useStore((s) => s.users);
   const tasks = useStore((s) => s.tasks);
   const perms = usePermissions();
+  const isMobile = useIsMobile();
 
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "all">("all");
@@ -135,13 +137,13 @@ export function Equipe() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      <div className={`flex ${isMobile ? "flex-col" : "items-center"} gap-3 mb-6 flex-wrap`}>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nome..."
-          className="w-80 h-9 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]"
+          className={`${isMobile ? "w-full" : "w-80"} h-9 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[14px] text-[var(--c-text)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)]`}
         />
         <div className="flex gap-1">
           {deptOptions.map((d) => (
@@ -190,7 +192,7 @@ export function Equipe() {
               <button
                 key={member.id}
                 onClick={() => setSelectedMember(member)}
-                className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-6 flex flex-col items-center text-center hover:border-[var(--c-border-2)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 transition-all duration-[250ms] text-left"
+                className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-6 flex flex-col items-center text-center hover:border-[var(--c-border-2)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:-translate-y-0.5 transition-all duration-[250ms] text-left"
               >
                 <img
                   src={member.avatar}
@@ -254,7 +256,7 @@ export function Equipe() {
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
-            className="relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[480px] w-[90vw] max-h-[80vh] overflow-y-auto p-6 animate-in zoom-in-95 fade-in duration-350"
+            className={`relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${isMobile ? "w-[95vw] max-h-[88vh]" : "max-w-[480px] w-[90vw] max-h-[80vh]"} overflow-y-auto p-4 md:p-6 animate-in zoom-in-95 fade-in duration-350`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -383,7 +385,7 @@ export function Equipe() {
         >
           <div className="absolute inset-0 bg-black/70" />
           <div
-            className="relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] max-w-[400px] w-[90vw] p-6 animate-in zoom-in-95 fade-in duration-350"
+            className={`relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${isMobile ? "w-[95vw]" : "max-w-[400px] w-[90vw]"} p-4 md:p-6 animate-in zoom-in-95 fade-in duration-350`}
             onClick={(e) => e.stopPropagation()}
           >
             <button

@@ -435,7 +435,7 @@ export function TaskModal() {
                       <button
                         key={p}
                         onClick={() => setPriority(p)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
+                        className="inline-flex items-center gap-1 px-2 py-1 md:gap-1.5 md:px-2.5 md:py-1.5 rounded-lg text-[11px] md:text-[12px] font-semibold transition-all"
                         style={{
                           background: priority === p ? priorityBg[p] : "transparent",
                           color: priority === p ? priorityColors[p] : "var(--c-muted)",
@@ -453,18 +453,18 @@ export function TaskModal() {
                 <div>
                   <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Status</label>
                   <div className="flex gap-1.5 flex-wrap">
-                    {(["novo", "em_andamento", "em_revisao", "concluido", "bloqueado"] as TaskStatus[]).map((s) => (
+                    {boards.map((b) => (
                       <button
-                        key={s}
-                        onClick={() => setStatus(s)}
-                        className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
+                        key={b.key}
+                        onClick={() => setStatus(b.key)}
+                        className="inline-flex items-center px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg text-[11px] md:text-[12px] font-semibold transition-all"
                         style={{
-                          background: status === s ? statusBg[s] : "transparent",
-                          color: status === s ? statusColors[s] : "var(--c-muted)",
-                          border: `1.5px solid ${status === s ? statusColors[s] + "60" : "var(--c-border)"}`,
+                          background: status === b.key ? `${b.color}26` : "transparent",
+                          color: status === b.key ? b.color : "var(--c-muted)",
+                          border: `1.5px solid ${status === b.key ? b.color + "60" : "var(--c-border)"}`,
                         }}
                       >
-                        {statusDisplayNames[s]}
+                        {b.name}
                       </button>
                     ))}
                   </div>
@@ -526,12 +526,12 @@ export function TaskModal() {
                 {/* Department */}
                 <div>
                   <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Setor</label>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
                     {(["comercial", "financeiro", "suporte"] as Department[]).map((d) => (
                       <button
                         key={d}
                         onClick={() => setDepartment(d)}
-                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
+                        className="inline-flex items-center px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[11px] md:text-[12px] font-semibold transition-all"
                         style={{
                           background: department === d ? deptBg[d] : "transparent",
                           color: department === d ? departmentColors[d] : "var(--c-muted)",
@@ -595,7 +595,7 @@ export function TaskModal() {
                     <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase mb-3 block">
                       Atividade
                     </label>
-                    <div className="space-y-3 mb-4 max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
+                    <div className="space-y-3 mb-4 max-h-[200px] md:max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
                       {feedItems.map((item) => {
                         const userId = item.kind === "activity" ? item.entry.userId : item.comment.userId;
                         const actorName = resolveActorName(userId);

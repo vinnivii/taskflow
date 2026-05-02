@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bloqueia pinch-to-zoom em navegadores que ignoram user-scalable=no */
+html {
+  touch-action: pan-x pan-y;
+}
+
 @layer base {
   :root {
     --background: 0 0% 4%;

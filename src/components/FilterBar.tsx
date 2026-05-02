@@ -45,7 +45,7 @@ export function FilterBar({ showStatusFilter = false }: FilterBarProps) {
           <button
             key={d.value}
             onClick={() => setFilter("department", d.value)}
-            className={`h-8 px-3 rounded-md text-[11px] font-semibold tracking-[0.5px] leading-3 transition-all ${
+            className={`h-8 px-2 md:px-3 rounded-md text-[10px] md:text-[11px] font-semibold tracking-[0.5px] leading-3 transition-all ${
               filters.department === d.value
                 ? "bg-[#F2C94C] text-[#0A0A0A]"
                 : "bg-[var(--c-surface-3)] text-[var(--c-muted)] border border-[var(--c-border)] hover:bg-[var(--c-hover)]"

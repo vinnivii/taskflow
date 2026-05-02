@@ -42,6 +42,7 @@ function MobileStatusTab({
         color: isOver || isActive ? "#fff" : isDragging ? color : "var(--c-muted)" as string,
         outline: isOver ? `2px solid ${color}` : undefined,
         transform: isOver ? "scale(1.06)" : undefined,
+        touchAction: "none",
       }}
     >
       {label} ({count})
@@ -66,8 +67,8 @@ export function Quadro() {
   const [activeColumn, setActiveColumn] = useState<TaskStatus>(boards[0]?.key ?? "novo");
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
 
   const boardRef = useRef<HTMLDivElement>(null);

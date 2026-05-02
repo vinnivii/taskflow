@@ -138,7 +138,7 @@ export function Relatorios() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total tasks */}
-        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-5">
           <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.total}
           </div>
@@ -150,7 +150,7 @@ export function Relatorios() {
         </div>
 
         {/* Completed */}
-        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-5">
           <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.completed}
           </div>
@@ -169,7 +169,7 @@ export function Relatorios() {
         </div>
 
         {/* Avg time */}
-        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-5">
           <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.avgTime}d
           </div>
@@ -183,7 +183,7 @@ export function Relatorios() {
         </div>
 
         {/* Pending */}
-        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-5">
+        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-3 md:p-5">
           <div className="text-[32px] font-bold text-[var(--c-text)] tracking-[-1.5px] leading-[38px]">
             {metrics.pending}
           </div>
