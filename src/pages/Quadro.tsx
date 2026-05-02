@@ -66,6 +66,12 @@ export function Quadro() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumn, setActiveColumn] = useState<TaskStatus>(boards[0]?.key ?? "novo");
 
+  useEffect(() => {
+    if (boards.length > 0 && !boards.find((b) => b.key === activeColumn)) {
+      setActiveColumn(boards[0].key);
+    }
+  }, [boards]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
@@ -231,7 +237,7 @@ export function Quadro() {
             </div>
             {/* Single column view */}
             <div className="flex flex-col gap-3 pb-20 overflow-y-auto flex-1">
-              {tasksByColumn[activeColumn].length === 0 ? (
+              {(tasksByColumn[activeColumn] ?? []).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="text-[var(--c-muted-2)] text-[13px]">Nenhuma tarefa</div>
                   {perms.canCreateInColumn(activeColumn) && (
@@ -244,7 +250,7 @@ export function Quadro() {
                   )}
                 </div>
               ) : (
-                tasksByColumn[activeColumn].map((task) => (
+                (tasksByColumn[activeColumn] ?? []).map((task) => (
                   <KanbanCard key={task.id} task={task} />
                 ))
               )}
