@@ -7,6 +7,7 @@ import { Relatorios } from "@/pages/Relatorios";
 import { Configuracoes } from "@/pages/Configuracoes";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { useEffect } from "react";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ function RoleGuard({
 function App() {
   const initAuth = useStore((s) => s.initAuth);
   const theme = useStore((s) => s.theme);
+  useInactivityLogout();
 
   useEffect(() => {
     void initAuth();
