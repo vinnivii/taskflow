@@ -126,7 +126,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
           {task.customerId && (() => {
             const c = customers.find((x) => x.id === task.customerId);
             return c ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] leading-3 bg-[var(--c-surface-4)] text-[var(--c-muted)] truncate max-w-[130px]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] leading-3 bg-[var(--c-surface-4)] text-[var(--c-muted)] truncate max-w-[180px]">
                 {c.cod} :: {c.nome}
               </span>
             ) : null;
