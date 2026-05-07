@@ -52,9 +52,14 @@ export function Tarefas() {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
   const [unarchiveDialogOpen, setUnarchiveDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const perPage = 20;
+
+  const handlePerPageChange = (n: number) => {
+    setPerPage(n);
+    setCurrentPage(1);
+  };
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -457,37 +462,58 @@ export function Tarefas() {
           </AlertDialog>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-5">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Anterior
-              </button>
+          {filteredTasks.length > 0 && (
+            <div className="flex items-center justify-between mt-5 gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-[var(--c-muted)]">Linhas por página:</span>
+                {[20, 50, 100].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => handlePerPageChange(n)}
+                    className={`h-7 px-2.5 rounded-md text-[11px] font-semibold transition-colors ${
+                      perPage === n
+                        ? "bg-[#F2C94C] text-[#0A0A0A]"
+                        : "bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] hover:bg-[var(--c-hover)]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-9 h-9 text-[11px] font-medium rounded-md transition-colors ${
-                    page === currentPage
-                      ? "bg-[#F2C94C] text-[#0A0A0A]"
-                      : "bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] hover:bg-[var(--c-hover)]"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Anterior
+                  </button>
 
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Proxima
-              </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-9 h-9 text-[11px] font-medium rounded-md transition-colors ${
+                        page === currentPage
+                          ? "bg-[#F2C94C] text-[#0A0A0A]"
+                          : "bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] hover:bg-[var(--c-hover)]"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </>

@@ -12,6 +12,7 @@ import type {
   TaskStatus,
   TaskPriority,
   Department,
+  Customer,
 } from "@/types";
 import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { generateAvatar } from "@/utils/avatar";
@@ -252,6 +253,13 @@ interface AppState {
     defaultStatus?: TaskStatus | null
   ) => void;
   closeTaskModal: () => void;
+
+  // Customers
+  customers: Customer[];
+  fetchCustomers: () => Promise<void>;
+  createCustomer: (data: { cod: string; documento: string; nome: string }) => Promise<{ success: boolean; error?: string }>;
+  updateCustomer: (id: string, data: Partial<Pick<Customer, "cod" | "documento" | "nome">>) => Promise<boolean>;
+  deleteCustomer: (id: string) => Promise<boolean>;
 
   // Notifications
   notifications: Notification[];
@@ -959,6 +967,51 @@ export const useStore = create<AppState>((set, get) => {
       taskModalTaskId: null,
       taskModalDefaultStatus: null,
     }),
+
+  // Customers
+  customers: [],
+  fetchCustomers: async () => {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("nome", { ascending: true });
+    if (error || !data) return;
+    const customers: Customer[] = (data as Array<{ id: string; cod: string; documento: string; nome: string; created_at: string; updated_at: string }>).map((row) => ({
+      id: row.id,
+      cod: row.cod,
+      documento: row.documento,
+      nome: row.nome,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    }));
+    set({ customers });
+  },
+  createCustomer: async ({ cod, documento, nome }) => {
+    const { data, error } = await supabase
+      .from("customers")
+      .insert({ cod, documento, nome })
+      .select("*")
+      .single();
+    if (error || !data) return { success: false, error: error?.message ?? "Erro ao criar cliente" };
+    const row = data as { id: string; cod: string; documento: string; nome: string; created_at: string; updated_at: string };
+    const newCustomer: Customer = { id: row.id, cod: row.cod, documento: row.documento, nome: row.nome, createdAt: new Date(row.created_at), updatedAt: new Date(row.updated_at) };
+    set((state) => ({ customers: [...state.customers, newCustomer].sort((a, b) => a.nome.localeCompare(b.nome)) }));
+    return { success: true };
+  },
+  updateCustomer: async (id, data) => {
+    const { error } = await supabase.from("customers").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) return false;
+    set((state) => ({
+      customers: state.customers.map((c) => c.id === id ? { ...c, ...data, updatedAt: new Date() } : c),
+    }));
+    return true;
+  },
+  deleteCustomer: async (id) => {
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+    if (error) return false;
+    set((state) => ({ customers: state.customers.filter((c) => c.id !== id) }));
+    return true;
+  },
 
   // Notifications
   notifications: [],

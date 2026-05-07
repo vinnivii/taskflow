@@ -5,6 +5,7 @@ import { Tarefas } from "@/pages/Tarefas";
 import { Equipe } from "@/pages/Equipe";
 import { Relatorios } from "@/pages/Relatorios";
 import { Configuracoes } from "@/pages/Configuracoes";
+import { Clientes } from "@/pages/Clientes";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
@@ -24,7 +25,7 @@ function RoleGuard({
   permission,
 }: {
   children: React.ReactNode;
-  permission: "canViewEquipe" | "canViewRelatorios" | "canManageBoards";
+  permission: "canViewEquipe" | "canViewRelatorios" | "canManageBoards" | "canViewClientes";
 }) {
   const perms = usePermissions();
   return perms[permission] ? <>{children}</> : <Navigate to="/quadro" replace />;
@@ -89,6 +90,16 @@ function App() {
           <PrivateRoute>
             <RoleGuard permission="canManageBoards">
               <Configuracoes />
+            </RoleGuard>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/clientes"
+        element={
+          <PrivateRoute>
+            <RoleGuard permission="canViewClientes">
+              <Clientes />
             </RoleGuard>
           </PrivateRoute>
         }

@@ -88,6 +88,15 @@ export interface Notification {
   createdAt: Date;
 }
 
+export interface Customer {
+  id: string;
+  cod: string;
+  documento: string;
+  nome: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ToastMessage {
   id: string;
   type: "success" | "error" | "warning" | "info";
