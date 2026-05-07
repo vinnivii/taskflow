@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, Bell, X, Sun, Moon, Menu } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -22,6 +22,34 @@ export function TopHeader({ title }: TopHeaderProps) {
   const toggleMobileSidebar = useStore((s) => s.toggleMobileSidebar);
   const perms = usePermissions();
   const isMobile = useIsMobile();
+
+  const [clock, setClock] = useState(() => {
+    const now = new Date();
+    return now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  });
+
+  useEffect(() => {
+    let offset = 0;
+
+    const syncTime = async () => {
+      try {
+        const res = await fetch("https://worldtimeapi.org/api/timezone/America/Fortaleza");
+        const data = await res.json() as { unixtime: number };
+        offset = data.unixtime * 1000 - Date.now();
+      } catch {
+        // API indisponível: usa relógio local (offset = 0)
+      }
+    };
+
+    const tick = () => {
+      const now = new Date(Date.now() + offset);
+      setClock(now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    };
+
+    void syncTime().then(() => tick());
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -106,6 +134,15 @@ export function TopHeader({ title }: TopHeaderProps) {
           >
             <Search size={18} />
           </button>
+        )}
+
+        {/* Relógio */}
+        {!isMobile && (
+          <div className="flex items-center gap-1.5 h-9 px-3 rounded-md bg-[var(--c-surface-3)] border border-[var(--c-border)] select-none">
+            <span className="font-mono text-[18px] font-bold text-[var(--c-text)] tracking-[1px] leading-none tabular-nums">
+              {clock}
+            </span>
+          </div>
         )}
 
         {/* Botão Criar Tarefa — somente para desktop */}
