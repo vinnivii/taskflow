@@ -16,6 +16,7 @@ export function TopHeader({ title }: TopHeaderProps) {
   const notifications = useStore((s) => s.notifications);
   const unreadCount = useStore((s) => s.unreadCount);
   const markNotificationRead = useStore((s) => s.markNotificationRead);
+  const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead);
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
   const toggleMobileSidebar = useStore((s) => s.toggleMobileSidebar);
@@ -145,18 +146,28 @@ export function TopHeader({ title }: TopHeaderProps) {
               <div className={`absolute right-0 top-12 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.15)] z-50 overflow-hidden ${isMobile ? "w-[calc(100vw-2rem)]" : "w-80"}`}>
                 <div className="px-4 py-3 border-b border-[var(--c-border)] flex items-center justify-between">
                   <span className="text-[var(--c-text)] text-[13px] font-semibold">Notificações</span>
-                  {unreadCount > 0 && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#EF4444]/10 text-[#EF4444]">
-                      {unreadCount} nova{unreadCount > 1 ? "s" : ""}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#EF4444]/10 text-[#EF4444]">
+                        {unreadCount} nova{unreadCount > 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => void markAllNotificationsRead()}
+                        className="text-[11px] font-semibold text-[var(--c-muted)] hover:text-[var(--c-text)] transition-colors"
+                      >
+                        Marcar todas como lidas
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {notifications.length === 0 ? (
                   <div className="px-4 py-6 text-center text-[var(--c-muted-2)] text-[13px]">
                     Sem notificações
                   </div>
                 ) : (
-                  <div className="max-h-[360px] overflow-y-auto">
+                  <div className="max-h-[360px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {notifications.map((n) => (
                       <button
                         key={n.id}

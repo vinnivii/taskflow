@@ -78,6 +78,7 @@ export function TaskModal() {
   } = useStore();
 
   const boards = useStore((s) => s.boards);
+  const customers = useStore((s) => s.customers);
   const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
   const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
   const statusBg = Object.fromEntries(boards.map((b) => [b.key, `${b.color}26`]));
@@ -102,6 +103,9 @@ export function TaskModal() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [idRfc, setIdRfc] = useState<number | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentImage, setCommentImage] = useState<File | null>(null);
   const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
@@ -130,6 +134,14 @@ export function TaskModal() {
       setDueDate(existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : "");
       setTags(existingTask.tags);
       setIdRfc(existingTask.idRfc ?? null);
+      const cid = existingTask.customerId ?? null;
+      setCustomerId(cid);
+      if (cid) {
+        const c = customers.find((x) => x.id === cid);
+        setCustomerSearch(c ? `${c.cod} :: ${c.nome}` : "");
+      } else {
+        setCustomerSearch("");
+      }
     } else if (taskModalMode === "create") {
       setTitle("");
       setDescription("");
@@ -140,6 +152,8 @@ export function TaskModal() {
       setDueDate("");
       setTags([]);
       setIdRfc(null);
+      setCustomerId(null);
+      setCustomerSearch("");
     }
   }, [existingTask, taskModalMode, taskModalDefaultStatus, currentUser?.department]);
 
@@ -168,6 +182,7 @@ export function TaskModal() {
         status,
         department,
         assigneeId,
+        customerId,
         creatorId: currentUser!.id,
         dueDate: dueDate ? new Date(dueDate) : null,
         tags,
@@ -201,6 +216,7 @@ export function TaskModal() {
         updates.dueDate = dueDate ? new Date(dueDate) : null;
       if (JSON.stringify(tags) !== JSON.stringify(existingTask.tags)) updates.tags = tags;
       if (idRfc !== existingTask.idRfc) updates.idRfc = idRfc;
+      if (customerId !== existingTask.customerId) updates.customerId = customerId;
 
       if (Object.keys(updates).length > 0) {
         const updated = await updateTask(existingTask.id, updates);
@@ -319,6 +335,14 @@ export function TaskModal() {
 
   const selectedAssignee = users.find((u) => u.id === assigneeId) || null;
 
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.toLowerCase().trim();
+    if (!q) return customers.slice(0, 30);
+    return customers
+      .filter((c) => c.cod.toLowerCase().includes(q) || c.nome.toLowerCase().includes(q))
+      .slice(0, 30);
+  }, [customers, customerSearch]);
+
   const headerBadge = {
     create: { label: "Nova Tarefa", bg: "rgba(242,201,76,0.12)", color: "#F2C94C" },
     edit: { label: "Editar Tarefa", bg: "rgba(59,130,246,0.12)", color: "#3B82F6" },
@@ -411,7 +435,7 @@ export function TaskModal() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descreva a tarefa..."
-                className="w-full min-h-[90px] bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl p-3.5 text-[14px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] resize-vertical transition-colors mb-6"
+                className="w-full min-h-[90px] bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-xl p-3.5 text-[14px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] resize-vertical transition-colors mb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               />
 
               <div className={`grid gap-4 mb-5 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -458,6 +482,10 @@ export function TaskModal() {
                   </div>
                 </div>
 
+              </div>
+
+              {/* Responsável + Prazo + ID RFC em linha */}
+              <div className={`grid gap-4 mb-5 ${isMobile ? "grid-cols-1" : "grid-cols-3"}`}>
                 {/* Assignee */}
                 <div>
                   <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Responsável</label>
@@ -509,6 +537,46 @@ export function TaskModal() {
                     min={1}
                     className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg px-3 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
+                </div>
+              </div>
+
+              <div className={`grid gap-4 mb-5 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+                {/* Cliente */}
+                <div className="col-span-full">
+                  <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Cliente</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={(e) => { setCustomerSearch(e.target.value); setCustomerDropdownOpen(true); setCustomerId(null); }}
+                      onFocus={() => setCustomerDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 150)}
+                      placeholder="Buscar por código ou nome..."
+                      className="w-full h-9 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded-lg px-3 pr-8 text-[13px] text-[var(--c-text-2)] placeholder:text-[var(--c-muted-2)] outline-none focus:border-[var(--c-border-2)] transition-colors"
+                    />
+                    {customerId && (
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); setCustomerId(null); setCustomerSearch(""); }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)] hover:text-[var(--c-text)] transition-colors"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                    {customerDropdownOpen && filteredCustomers.length > 0 && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.4)] max-h-44 overflow-y-auto">
+                        {filteredCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            onMouseDown={() => { setCustomerId(c.id); setCustomerSearch(`${c.cod} :: ${c.nome}`); setCustomerDropdownOpen(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--c-hover)] transition-colors"
+                          >
+                            <span className="font-mono text-[12px] text-[var(--c-muted-2)] shrink-0">{c.cod}</span>
+                            <span className="text-[13px] text-[var(--c-text)] truncate">{c.nome}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Department */}
@@ -725,6 +793,17 @@ export function TaskModal() {
                     <span className="font-mono text-[13px] text-[var(--c-text-2)]">RFC-{task.idRfc}</span>
                   </MetaRow>
                 )}
+                {/* Cliente */}
+                {task?.customerId && (() => {
+                  const c = customers.find((x) => x.id === task.customerId);
+                  return c ? (
+                    <MetaRow label="Cliente">
+                      <span className="text-[13px] text-[var(--c-text-2)]">
+                        <span className="font-mono text-[var(--c-muted-2)] mr-1.5">{c.cod}</span>{c.nome}
+                      </span>
+                    </MetaRow>
+                  ) : null;
+                })()}
 
                 {/* Department badge */}
                 <div>

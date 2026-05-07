@@ -51,6 +51,7 @@ type TaskRow = {
   status: TaskStatus;
   department: Department;
   assignee_id: string | null;
+  customer_id: string | null;
   creator_id: string;
   due_date: string | null;
   tags?: string[] | null;
@@ -101,6 +102,7 @@ const toTask = (row: TaskRow): Task => ({
   status: row.status,
   department: row.department,
   assigneeId: row.assignee_id,
+  customerId: row.customer_id ?? null,
   creatorId: row.creator_id,
   dueDate: row.due_date ? new Date(row.due_date) : null,
   tags: row.tags ?? [],
@@ -119,6 +121,7 @@ const toTaskInsert = (task: Task) => ({
   status: task.status,
   department: task.department,
   assignee_id: isUuid(task.assigneeId) ? task.assigneeId : null,
+  customer_id: isUuid(task.customerId) ? task.customerId : null,
   creator_id: isUuid(task.creatorId) ? task.creatorId : crypto.randomUUID(),
   due_date: task.dueDate ? task.dueDate.toISOString() : null,
   tags: task.tags,
@@ -139,6 +142,9 @@ const toTaskUpdate = (updates: Partial<Task>) => {
   if (updates.department !== undefined) payload.department = updates.department;
   if (updates.assigneeId !== undefined) {
     payload.assignee_id = isUuid(updates.assigneeId) ? updates.assigneeId : null;
+  }
+  if (updates.customerId !== undefined) {
+    payload.customer_id = isUuid(updates.customerId) ? updates.customerId : null;
   }
   if (updates.creatorId !== undefined) payload.creator_id = updates.creatorId;
   if (updates.dueDate !== undefined) {
@@ -266,6 +272,7 @@ interface AppState {
   unreadCount: number;
   fetchNotifications: (userId: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => {
@@ -292,6 +299,7 @@ export const useStore = create<AppState>((set, get) => {
     set({ currentUser: user, isAuthenticated: true });
     void get().fetchUsers();
     void get().fetchBoards();
+    void get().fetchCustomers();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
   },
@@ -340,6 +348,7 @@ export const useStore = create<AppState>((set, get) => {
     set({ currentUser: user, isAuthenticated: true, authLoading: false });
     void get().fetchUsers();
     void get().fetchBoards();
+    void get().fetchCustomers();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
   },
@@ -1040,6 +1049,19 @@ export const useStore = create<AppState>((set, get) => {
       notifications,
       unreadCount: notifications.filter((n) => !n.read).length,
     });
+  },
+  markAllNotificationsRead: async () => {
+    const userId = get().currentUser?.id;
+    if (!userId) return;
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    }));
   },
   markNotificationRead: async (id) => {
     const { error } = await supabase

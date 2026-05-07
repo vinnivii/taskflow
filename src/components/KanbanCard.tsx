@@ -38,6 +38,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
     transition: isDragging ? "none" : undefined,
   };
 
+  const customers = useStore((s) => s.customers);
   const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
   const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && task.status !== "concluido";
 
@@ -122,6 +123,14 @@ export function KanbanCard({ task }: KanbanCardProps) {
               ? "Financeiro"
               : "Suporte"}
           </span>
+          {task.customerId && (() => {
+            const c = customers.find((x) => x.id === task.customerId);
+            return c ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px] leading-3 bg-[var(--c-surface-4)] text-[var(--c-muted)] truncate max-w-[130px]">
+                {c.cod} :: {c.nome}
+              </span>
+            ) : null;
+          })()}
           {task.tags.slice(0, 2).map((tag) => (
             <span
               key={tag}

@@ -65,6 +65,7 @@ export interface Task {
   status: TaskStatus;
   department: Department;
   assigneeId: string | null;
+  customerId: string | null;
   creatorId: string;
   dueDate: Date | null;
   tags: string[];
