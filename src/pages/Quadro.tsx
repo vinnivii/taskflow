@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { FilterBar } from "@/components/FilterBar";
 import { KanbanColumn } from "@/components/KanbanColumn";
@@ -19,6 +19,169 @@ import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Task, TaskStatus } from "@/types";
+
+const MONITOR_URL = "https://monitoramento-softcomshop.softcomapps.com/status/monitor";
+const MONITOR_API_URL = "https://monitoramento-softcomshop.softcomapps.com/api/status-page/monitor";
+const MONITOR_HEARTBEAT_URL = "https://monitoramento-softcomshop.softcomapps.com/api/status-page/heartbeat/monitor";
+const MONITOR_BAR_COUNT = 12;
+
+interface MonitorService {
+  id: number;
+  name: string;
+  uptime: number;
+  bars: boolean[];
+}
+
+interface StatusPageMonitor {
+  id: number;
+  name: string;
+}
+
+interface StatusPageGroup {
+  monitorList?: StatusPageMonitor[];
+}
+
+interface StatusPageResponse {
+  publicGroupList?: StatusPageGroup[];
+}
+
+interface Heartbeat {
+  status?: number;
+}
+
+interface HeartbeatResponse {
+  heartbeatList?: Record<string, Heartbeat[]>;
+  uptimeList?: Record<string, number>;
+}
+
+const FALLBACK_MONITOR_SERVICES: MonitorService[] = [
+  { id: 5, name: "AWS - Stack 1", uptime: 99.98, bars: Array(MONITOR_BAR_COUNT).fill(true) },
+  { id: 4, name: "Glaçaí", uptime: 100, bars: Array(MONITOR_BAR_COUNT).fill(true) },
+  { id: 3, name: "Servidor Antigo", uptime: 100, bars: Array(MONITOR_BAR_COUNT).fill(true) },
+  { id: 1, name: "Servidor Novo", uptime: 100, bars: Array(MONITOR_BAR_COUNT).fill(true) },
+];
+
+function formatUptime(value: number) {
+  return value === 100 ? "100%" : `${value.toFixed(2)}%`;
+}
+
+function buildBars(heartbeats: Heartbeat[] | undefined) {
+  const bars = heartbeats
+    ?.slice(-MONITOR_BAR_COUNT)
+    .map((heartbeat) => heartbeat.status === 1) ?? [];
+
+  return [
+    ...Array(Math.max(0, MONITOR_BAR_COUNT - bars.length)).fill(true),
+    ...bars,
+  ];
+}
+
+function getUptimeFromHeartbeats(heartbeats: Heartbeat[] | undefined) {
+  if (!heartbeats?.length) return 100;
+  const upCount = heartbeats.filter((heartbeat) => heartbeat.status === 1).length;
+  return Number(((upCount / heartbeats.length) * 100).toFixed(2));
+}
+
+function ServiceMonitor() {
+  const [services, setServices] = useState<MonitorService[]>(FALLBACK_MONITOR_SERVICES);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchMonitor = async () => {
+      try {
+        const [statusPageRes, heartbeatRes] = await Promise.all([
+          fetch(MONITOR_API_URL),
+          fetch(MONITOR_HEARTBEAT_URL),
+        ]);
+
+        if (!statusPageRes.ok || !heartbeatRes.ok) return;
+
+        const statusPage = await statusPageRes.json() as StatusPageResponse;
+        const heartbeatData = await heartbeatRes.json() as HeartbeatResponse;
+
+        const monitors = statusPage.publicGroupList
+          ?.flatMap((group) => group.monitorList ?? [])
+          .filter((monitor) => monitor.name)
+          .slice(0, 4) ?? [];
+
+        if (cancelled || monitors.length === 0) return;
+
+        setServices(monitors.map((monitor) => {
+          const monitorKey = String(monitor.id);
+          const heartbeats = heartbeatData.heartbeatList?.[monitorKey];
+          const uptimeValue = heartbeatData.uptimeList?.[`${monitor.id}_24`] ?? getUptimeFromHeartbeats(heartbeats);
+
+          return {
+            id: monitor.id,
+            name: monitor.name,
+            uptime: Number((uptimeValue * (uptimeValue <= 1 ? 100 : 1)).toFixed(2)),
+            bars: buildBars(heartbeats),
+          };
+        }));
+        setLastUpdatedAt(new Date());
+      } catch {
+        // Mantem o desenho de fallback quando a API pública bloquear CORS ou estiver indisponível.
+      }
+    };
+
+    void fetchMonitor();
+    const intervalId = window.setInterval(fetchMonitor, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const updateLabel = lastUpdatedAt
+    ? `Atualizado ${lastUpdatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+    : "Aguardando atualização";
+
+  return (
+    <section
+      className="hidden h-12 max-w-[820px] shrink items-center gap-3 overflow-hidden rounded-md border border-[#151B24] bg-[#0D1117] px-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] xl:flex"
+      title={updateLabel}
+    >
+      <div className="grid min-w-0 flex-1 grid-cols-4 gap-3">
+        {services.map((service) => (
+          <div
+            key={service.id}
+            className="min-w-0 rounded bg-white/[0.025] px-2.5 py-1.5"
+            title={`${service.name} - ${formatUptime(service.uptime)} - ${updateLabel}`}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-5 min-w-[56px] shrink-0 items-center justify-center rounded-full bg-[#62E88E] px-2 text-[10px] font-bold leading-none text-[#05110A]">
+                {formatUptime(service.uptime)}
+              </span>
+              <span className="min-w-0 truncate text-[12px] font-semibold text-[#DCE7FF]">
+                {service.name}
+              </span>
+            </div>
+            <div className="mt-1 flex h-2.5 min-w-0 items-center justify-between gap-[3px] overflow-hidden">
+              {service.bars.map((isUp, index) => (
+                <span
+                  key={`${service.id}-${index}`}
+                  className={`h-2.5 flex-1 rounded-full ${isUp ? "bg-[#62E88E]" : "bg-[#EF4444]"}`}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <a
+        href={MONITOR_URL}
+        target="_blank"
+        rel="noreferrer"
+        title="Abrir monitoramento"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#7D8796] transition-colors hover:bg-white/5 hover:text-[#DCE7FF]"
+      >
+        <ExternalLink size={14} />
+      </a>
+    </section>
+  );
+}
 
 function MobileStatusTab({
   status, count, isActive, isDragging, onClick, color, label,
@@ -279,7 +442,7 @@ export function Quadro() {
     <AppLayout title="Quadro">
       <div className="flex flex-col h-full">
         {/* Page header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
               Quadro
@@ -288,6 +451,7 @@ export function Quadro() {
               ({totalTasks} {totalTasks === 1 ? "tarefa" : "tarefas"})
             </span>
           </div>
+          <ServiceMonitor />
         </div>
 
         {/* Filter bar */}

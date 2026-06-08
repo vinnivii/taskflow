@@ -1,12 +1,16 @@
 {
   "name": "taskflow",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "sync:version": "node scripts/syncVersion.mjs",
+    "predev": "node scripts/syncVersion.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/syncVersion.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "prepreview": "node scripts/syncVersion.mjs",
     "preview": "vite preview",
     "db:push": "npx supabase db push",
     "db:pull": "npx supabase db pull",

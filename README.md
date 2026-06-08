@@ -138,21 +138,16 @@ Isso cria um arquivo vazio em `supabase/migrations/` com o timestamp correto. Es
 
 ## Versionamento
 
-A versão do app é controlada por dois lugares em conjunto:
+A versão do app é controlada em um único lugar:
 
-**`package.json`** — campo `version` (fonte de verdade):
-```json
-{
-  "version": "0.0.0"
-}
-```
-
-**`.env`** — variável lida pelo frontend em tempo de build:
+**`.env`** — fonte de verdade da versão:
 ```env
-VITE_APP_VERSION=0.0.0
+VITE_APP_VERSION=1.0.0
 ```
 
-A versão aparece no rodapé da tela de Login (`Softcom TaskFlow v0.0.0`).
+A versão aparece no rodapé da tela de Login (`Softcom TaskFlow v1.0.0`).
+
+O script `scripts/syncVersion.mjs` lê essa variável e atualiza automaticamente o campo `version` de `package.json` e `package-lock.json` antes de `dev`, `build` e `preview`.
 
 ### Convenção de numeração
 
@@ -166,8 +161,8 @@ O projeto segue [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`
 
 ### Como lançar uma nova versão
 
-1. Atualize `"version"` no `package.json`
-2. Atualize `VITE_APP_VERSION` no `.env` (e no `.env.example` se necessário)
+1. Atualize `VITE_APP_VERSION` no `.env`
+2. Rode `npm run sync:version` se quiser sincronizar os metadados sem iniciar o app
 3. Crie um commit com a mensagem `chore: bump version to X.Y.Z`
 4. Crie uma tag no git:
    ```bash

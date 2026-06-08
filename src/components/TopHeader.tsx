@@ -33,9 +33,10 @@ export function TopHeader({ title }: TopHeaderProps) {
 
     const syncTime = async () => {
       try {
-        const res = await fetch("https://worldtimeapi.org/api/timezone/America/Fortaleza");
-        const data = await res.json() as { unixtime: number };
-        offset = data.unixtime * 1000 - Date.now();
+        const res = await fetch("https://timeapi.io/api/time/current/zone?timeZone=America%2FFortaleza");
+        const data = await res.json() as { dateTime: string };
+        const serverMs = new Date(data.dateTime).getTime();
+        offset = serverMs - Date.now();
       } catch {
         // API indisponível: usa relógio local (offset = 0)
       }
