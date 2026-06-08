@@ -9,6 +9,14 @@ export default defineConfig({
   plugins: [inspectAttr(), react()],
   server: {
     port: 3000,
+    proxy: {
+      "/api/uptime-kuma": {
+        target: "https://monitoramento-softcomshop.softcomapps.com",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/uptime-kuma/, ""),
+      },
+    },
   },
   resolve: {
     alias: {

@@ -21,9 +21,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import type { Task, TaskStatus } from "@/types";
 
 const MONITOR_URL = "https://monitoramento-softcomshop.softcomapps.com/status/monitor";
-const MONITOR_API_URL = "https://monitoramento-softcomshop.softcomapps.com/api/status-page/monitor";
-const MONITOR_HEARTBEAT_URL = "https://monitoramento-softcomshop.softcomapps.com/api/status-page/heartbeat/monitor";
+const MONITOR_PROXY_BASE_URL = "/api/uptime-kuma";
+const MONITOR_API_URL = `${MONITOR_PROXY_BASE_URL}/api/status-page/monitor`;
+const MONITOR_HEARTBEAT_URL = `${MONITOR_PROXY_BASE_URL}/api/status-page/heartbeat/monitor`;
 const MONITOR_BAR_COUNT = 12;
+const MONITOR_REFRESH_MS = 30_000;
 
 interface MonitorService {
   id: number;
@@ -82,6 +84,10 @@ function getUptimeFromHeartbeats(heartbeats: Heartbeat[] | undefined) {
   return Number(((upCount / heartbeats.length) * 100).toFixed(2));
 }
 
+function withCacheBuster(url: string) {
+  return `${url}?_=${Date.now()}`;
+}
+
 function ServiceMonitor() {
   const [services, setServices] = useState<MonitorService[]>(FALLBACK_MONITOR_SERVICES);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -92,8 +98,8 @@ function ServiceMonitor() {
     const fetchMonitor = async () => {
       try {
         const [statusPageRes, heartbeatRes] = await Promise.all([
-          fetch(MONITOR_API_URL),
-          fetch(MONITOR_HEARTBEAT_URL),
+          fetch(withCacheBuster(MONITOR_API_URL), { cache: "no-store" }),
+          fetch(withCacheBuster(MONITOR_HEARTBEAT_URL), { cache: "no-store" }),
         ]);
 
         if (!statusPageRes.ok || !heartbeatRes.ok) return;
@@ -127,7 +133,7 @@ function ServiceMonitor() {
     };
 
     void fetchMonitor();
-    const intervalId = window.setInterval(fetchMonitor, 60_000);
+    const intervalId = window.setInterval(fetchMonitor, MONITOR_REFRESH_MS);
 
     return () => {
       cancelled = true;
