@@ -1,395 +1,144 @@
-import { useState, useEffect } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Settings, Plus, Pencil, Trash2, Check, X, GripVertical } from "lucide-react";
+import { Settings, Plus, Pencil, Trash2, GripVertical } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
-import type { Board } from "@/types";
+import { selectActiveKanban, slugify, uniqueKanbanSlug } from "@/lib/kanban";
+import type { KanbanColumnKind } from "@/types";
 
-const PRESET_COLORS = [
-  "#A855F7", "#3B82F6", "#22C55E", "#EF4444",
-  "#F97316", "#F2C94C", "#EC4899", "#14B8A6",
-  "#6366F1", "#84CC16", "#F43F5E", "#8B5CF6",
-];
+const PRESET_COLORS = ["#A855F7", "#3B82F6", "#22C55E", "#EF4444", "#F97316", "#F2C94C", "#EC4899", "#14B8A6"];
+const KIND_LABELS = { normal: "Normal", completed: "Concluída", blocked: "Bloqueada" };
+const inputClass = "w-full h-9 px-3 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-md text-sm text-[var(--c-text)]";
+const buttonClass = "h-8 px-3 rounded-md bg-[#F2C94C] text-[#0A0A0A] text-xs font-semibold disabled:opacity-40";
+interface FormState { name: string; slug: string; color: string; kind: KanbanColumnKind }
+const emptyForm: FormState = { name: "", slug: "", color: "#3B82F6", kind: "normal" };
 
-function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "");
-}
-
-function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {PRESET_COLORS.map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onChange(c)}
-          className="w-7 h-7 rounded-full border-2 transition-all"
-          style={{
-            backgroundColor: c,
-            borderColor: value === c ? "#fff" : "transparent",
-            boxShadow: value === c ? `0 0 0 2px ${c}` : undefined,
-          }}
-        />
-      ))}
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        maxLength={7}
-        placeholder="#hex"
-        className="w-20 h-7 px-2 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded text-[12px] text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)] font-mono"
-      />
+function EntityForm({ initial, isKanban, unavailableKinds = [], suggestSlug, onSave, onCancel }: {
+  initial: FormState; isKanban: boolean; unavailableKinds?: KanbanColumnKind[];
+  suggestSlug?: (name: string) => string; onSave: (form: FormState) => Promise<boolean>; onCancel: () => void;
+}) {
+  const [form, setForm] = useState(initial);
+  const [manualSlug, setManualSlug] = useState(!!initial.slug);
+  const [saving, setSaving] = useState(false);
+  const valid = !!form.name.trim() && /^#[0-9a-f]{6}$/i.test(form.color) && (!isKanban || !!form.slug);
+  return <form className="p-4 space-y-3 bg-[var(--c-surface-3)] rounded-lg border border-[var(--c-border-2)]" onSubmit={(event) => {
+    event.preventDefault();
+    if (!valid || saving) return;
+    setSaving(true);
+    void onSave({ ...form, name: form.name.trim() }).then((ok) => { setSaving(false); if (ok) onCancel(); });
+  }}>
+    <label className="block text-xs space-y-1">Nome
+      <input autoFocus aria-label={isKanban ? "Nome do Kanban" : "Nome da coluna"} className={inputClass} value={form.name} onChange={(event) => {
+        const name = event.target.value;
+        setForm({ ...form, name, slug: isKanban && !manualSlug ? (suggestSlug?.(name) ?? slugify(name)) : form.slug });
+      }} />
+    </label>
+    {isKanban && <label className="block text-xs space-y-1">Endereço do Kanban
+      <input aria-label="Slug do Kanban" className={inputClass} value={form.slug} onChange={(event) => {
+        setManualSlug(true); setForm({ ...form, slug: slugify(event.target.value) });
+      }} />
+    </label>}
+    {!isKanban && <label className="block text-xs space-y-1">Função da coluna
+      <select aria-label="Função da coluna" className={inputClass} value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as KanbanColumnKind })}>
+        {Object.entries(KIND_LABELS).map(([kind, name]) => <option key={kind} value={kind} disabled={unavailableKinds.includes(kind as KanbanColumnKind)}>{name}</option>)}
+      </select>
+    </label>}
+    <div className="flex flex-wrap items-center gap-2">
+      {PRESET_COLORS.map((color) => <button type="button" aria-label={`Cor ${color}`} key={color} className="w-7 h-7 rounded-full border-2" style={{ background: color, borderColor: form.color === color ? "white" : "transparent" }} onClick={() => setForm({ ...form, color })} />)}
+      <input aria-label="Cor personalizada" className="w-24 h-8 px-2 rounded bg-[var(--c-surface)] border border-[var(--c-border)] text-xs" value={form.color} maxLength={7} onChange={(event) => setForm({ ...form, color: event.target.value })} />
     </div>
-  );
+    <div className="flex gap-3"><button className={buttonClass} disabled={!valid || saving}>{saving ? "Salvando…" : "Salvar"}</button><button type="button" disabled={saving} onClick={onCancel} className="text-xs">Cancelar</button></div>
+  </form>;
 }
 
-interface BoardFormState {
-  name: string;
-  key: string;
-  color: string;
-  keyManuallyEdited: boolean;
-}
-
-function SortableBoardRow({ board, taskCount }: { board: Board; taskCount: number }) {
-  const updateBoard = useStore((s) => s.updateBoard);
-  const deleteBoard = useStore((s) => s.deleteBoard);
-  const addToast = useStore((s) => s.addToast);
-
+function EntityRow({ id, form, count, isKanban, active, unavailableKinds, onSelect, onSave, onDelete }: {
+  id: string; form: FormState; count: number; isKanban: boolean; active?: boolean;
+  unavailableKinds?: KanbanColumnKind[]; onSelect?: () => void;
+  onSave: (form: FormState) => Promise<boolean>; onDelete: () => Promise<boolean>;
+}) {
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<BoardFormState>({
-    name: board.name,
-    key: board.key,
-    color: board.color,
-    keyManuallyEdited: true,
-  });
-  const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: board.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  const handleSave = async () => {
-    if (!form.name.trim()) return;
-    setLoading(true);
-    const ok = await updateBoard(board.id, { name: form.name.trim(), color: form.color });
-    setLoading(false);
-    if (ok) {
-      setEditing(false);
-      addToast({ type: "success", title: "Quadro atualizado", message: form.name });
-    } else {
-      addToast({ type: "error", title: "Erro ao atualizar", message: "Tente novamente." });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (taskCount > 0) return;
-    setDeleting(true);
-    const ok = await deleteBoard(board.id);
-    setDeleting(false);
-    if (!ok) addToast({ type: "error", title: "Erro ao excluir", message: "Tente novamente." });
-  };
-
-  const handleCancel = () => {
-    setForm({ name: board.name, key: board.key, color: board.color, keyManuallyEdited: true });
-    setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="flex flex-col gap-3 p-4 bg-[var(--c-surface-3)] rounded-lg border border-[var(--c-border-2)]"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: form.color }} />
-          <input
-            autoFocus
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="flex-1 h-9 px-3 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-md text-[13px] text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)]"
-            placeholder="Nome do quadro"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleSave();
-              if (e.key === "Escape") handleCancel();
-            }}
-          />
-          <button
-            onClick={() => void handleSave()}
-            disabled={loading || !form.name.trim()}
-            className="w-8 h-8 flex items-center justify-center rounded-md bg-[#22C55E]/15 text-[#22C55E] hover:bg-[#22C55E]/25 transition-colors disabled:opacity-40"
-          >
-            <Check size={15} />
-          </button>
-          <button
-            onClick={handleCancel}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:bg-[var(--c-hover)] transition-colors"
-          >
-            <X size={15} />
-          </button>
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}>
+    {editing ? <EntityForm initial={form} isKanban={isKanban} unavailableKinds={unavailableKinds} onSave={onSave} onCancel={() => setEditing(false)} /> :
+      <div className={`flex flex-wrap items-center gap-2 px-3 py-3 rounded-lg border bg-[var(--c-surface-3)] ${active ? "border-[#F2C94C]/60" : "border-[var(--c-border)]"}`}>
+        <button aria-label={`Reordenar ${form.name}`} className="touch-none cursor-grab text-[var(--c-muted)]" {...attributes} {...listeners}><GripVertical size={16} /></button>
+        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: form.color }} />
+        <div className="flex-1 min-w-24">
+          {onSelect ? <button className="text-sm font-medium text-left" onClick={onSelect}>{form.name}</button> : <span className="text-sm font-medium">{form.name}</span>}
+          <p className="text-[11px] text-[var(--c-muted)] break-all">{isKanban ? `/${form.slug}` : KIND_LABELS[form.kind]}</p>
         </div>
-        <ColorPicker value={form.color} onChange={(c) => setForm((f) => ({ ...f, color: c }))} />
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--c-muted-2)] font-mono">key: {board.key}</span>
-          <span className="text-[10px] text-[var(--c-muted-3)]">(a key não pode ser alterada)</span>
-        </div>
-      </div>
-    );
-  }
+        <span className="text-[11px] text-[var(--c-muted)]">{count} tarefa(s)</span>
+        <button aria-label={`Editar ${form.name}`} className="p-1.5" onClick={() => setEditing(true)}><Pencil size={14} /></button>
+        <button aria-label={`Excluir ${form.name}`} className="p-1.5 text-red-400 disabled:opacity-30" disabled={count > 0 || deleting} title={count ? `${count} tarefa(s), incluindo arquivadas. Exclusão bloqueada.` : "Excluir"} onClick={() => setConfirmDelete(true)}><Trash2 size={14} /></button>
+        {confirmDelete && <div className="w-full flex flex-wrap items-center gap-3 text-xs" role="alert">
+          <span>Excluir {form.name}?</span><button className={buttonClass} disabled={deleting} onClick={() => {
+            setDeleting(true); void onDelete().then((ok) => { setDeleting(false); if (ok) setConfirmDelete(false); });
+          }}>Confirmar exclusão</button><button onClick={() => setConfirmDelete(false)}>Cancelar</button>
+        </div>}
+      </div>}
+  </div>;
+}
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-3 px-4 py-3 bg-[var(--c-surface-3)] rounded-lg border border-[var(--c-border)] group"
-    >
-      {/* Drag handle */}
-      <button
-        className="cursor-grab active:cursor-grabbing text-[var(--c-muted-3)] hover:text-[var(--c-muted)] transition-colors touch-none shrink-0"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical size={16} />
-      </button>
-
-      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: board.color }} />
-
-      <div className="flex-1 min-w-0">
-        <span className="text-[14px] font-medium text-[var(--c-text)]">{board.name}</span>
-        <span className="ml-2 text-[11px] text-[var(--c-muted-2)] font-mono">{board.key}</span>
-      </div>
-
-      <span className="text-[11px] text-[var(--c-muted-2)] shrink-0">
-        {taskCount} {taskCount === 1 ? "task" : "tasks"}
-      </span>
-
-      <button
-        onClick={() => setEditing(true)}
-        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors"
-        title="Editar"
-      >
-        <Pencil size={14} />
-      </button>
-
-      <div className="relative group/del">
-        <button
-          onClick={() => void handleDelete()}
-          disabled={taskCount > 0 || deleting}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          title={taskCount > 0 ? "Quadro possui tasks — não pode excluir" : "Excluir quadro"}
-        >
-          <Trash2 size={14} />
-        </button>
-        {taskCount > 0 && (
-          <div className="absolute right-0 bottom-full mb-1.5 px-2 py-1 bg-[var(--c-surface-2)] border border-[var(--c-border)] rounded text-[11px] text-[var(--c-muted)] whitespace-nowrap pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity z-10">
-            Quadro possui tasks
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function SortableList({ ids, onReorder, children }: { ids: string[]; onReorder: (ids: string[]) => Promise<boolean>; children: React.ReactNode }) {
+  const [saving, setSaving] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }));
+  const onDragEnd = (event: DragEndEvent) => {
+    if (saving || !event.over || event.active.id === event.over.id) return;
+    const from = ids.indexOf(String(event.active.id)); const to = ids.indexOf(String(event.over.id));
+    if (from < 0 || to < 0) return;
+    setSaving(true); void onReorder(arrayMove(ids, from, to)).finally(() => setSaving(false));
+  };
+  return <div aria-busy={saving} className="space-y-2"><DndContext sensors={sensors} onDragEnd={onDragEnd}><SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext></DndContext></div>;
 }
 
 export function Configuracoes() {
-  const boards = useStore((s) => s.boards);
-  const tasks = useStore((s) => s.tasks);
-  const createBoard = useStore((s) => s.createBoard);
-  const updateBoard = useStore((s) => s.updateBoard);
-  const fetchBoards = useStore((s) => s.fetchBoards);
-  const addToast = useStore((s) => s.addToast);
-
-  useEffect(() => { void fetchBoards(); }, []);
-
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<BoardFormState>({
-    name: "",
-    key: "",
-    color: "#3B82F6",
-    keyManuallyEdited: false,
-  });
-  const [saving, setSaving] = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
-  );
-
-  const taskCountByBoard = (key: string) => tasks.filter((t) => t.status === key).length;
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = boards.findIndex((b) => b.id === active.id);
-    const newIndex = boards.findIndex((b) => b.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(boards, oldIndex, newIndex);
-
-    // Update positions optimistically in store then persist
-    useStore.setState({ boards: reordered });
-    await Promise.all(
-      reordered.map((b, i) => updateBoard(b.id, { position: i }))
-    );
-  };
-
-  const handleNameChange = (name: string) => {
-    setForm((f) => ({
-      ...f,
-      name,
-      key: f.keyManuallyEdited ? f.key : slugify(name),
-    }));
-  };
-
-  const handleCreate = async () => {
-    if (!form.name.trim() || !form.key.trim()) return;
-    setSaving(true);
-    const ok = await createBoard({ key: form.key, name: form.name.trim(), color: form.color });
-    setSaving(false);
-    if (ok) {
-      setCreating(false);
-      setForm({ name: "", key: "", color: "#3B82F6", keyManuallyEdited: false });
-      addToast({ type: "success", title: "Quadro criado", message: form.name });
-    } else {
-      addToast({ type: "error", title: "Erro ao criar", message: "A key já pode estar em uso." });
-    }
-  };
-
-  const handleCancelCreate = () => {
-    setCreating(false);
-    setForm({ name: "", key: "", color: "#3B82F6", keyManuallyEdited: false });
-  };
-
-  return (
-    <AppLayout title="Configurações">
-      <div className="max-w-2xl mx-auto py-2">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-[var(--c-surface-3)] flex items-center justify-center">
-            <Settings size={20} className="text-[var(--c-muted)]" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-semibold text-[var(--c-text)] tracking-[-0.6px]">
-              Configurações
-            </h1>
-            <p className="text-[13px] text-[var(--c-muted)]">Gerencie os quadros do Kanban</p>
-          </div>
-        </div>
-
-        {/* Section */}
-        <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--c-border)]">
-            <span className="text-[13px] font-semibold text-[var(--c-text)]">Quadros</span>
-            {!creating && (
-              <button
-                onClick={() => setCreating(true)}
-                className="flex items-center gap-1.5 h-8 px-3 bg-[#F2C94C] hover:bg-[#F5D76A] text-[#0A0A0A] text-[12px] font-semibold rounded-md transition-colors"
-              >
-                <Plus size={14} />
-                Novo Quadro
-              </button>
-            )}
-          </div>
-
-          <div className="p-3 flex flex-col gap-2">
-            {/* Create form */}
-            {creating && (
-              <div className="flex flex-col gap-3 p-4 bg-[var(--c-surface-3)] rounded-lg border border-[#F2C94C]/40">
-                <p className="text-[12px] font-semibold text-[var(--c-muted)] uppercase tracking-[0.5px]">
-                  Novo quadro
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: form.color }} />
-                  <input
-                    autoFocus
-                    value={form.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    className="flex-1 h-9 px-3 bg-[var(--c-surface)] border border-[var(--c-border)] rounded-md text-[13px] text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)]"
-                    placeholder="Nome do quadro"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handleCreate();
-                      if (e.key === "Escape") handleCancelCreate();
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[var(--c-muted-2)] shrink-0">Key:</span>
-                  <input
-                    value={form.key}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, key: slugify(e.target.value), keyManuallyEdited: true }))
-                    }
-                    className="w-40 h-7 px-2 bg-[var(--c-surface)] border border-[var(--c-border)] rounded text-[12px] text-[var(--c-text)] font-mono outline-none focus:border-[var(--c-border-2)]"
-                    placeholder="slug_da_key"
-                  />
-                  <span className="text-[10px] text-[var(--c-muted-3)]">usada no status das tasks</span>
-                </div>
-                <ColorPicker value={form.color} onChange={(c) => setForm((f) => ({ ...f, color: c }))} />
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={() => void handleCreate()}
-                    disabled={saving || !form.name.trim() || !form.key.trim()}
-                    className="h-8 px-4 bg-[#F2C94C] hover:bg-[#F5D76A] text-[#0A0A0A] text-[12px] font-semibold rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {saving ? "Criando…" : "Criar quadro"}
-                  </button>
-                  <button
-                    onClick={handleCancelCreate}
-                    className="h-8 px-4 text-[var(--c-muted)] text-[12px] hover:text-[var(--c-text)] transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Sortable board list */}
-            <DndContext sensors={sensors} onDragEnd={(e) => void handleDragEnd(e)}>
-              <SortableContext items={boards.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                {boards.map((board) => (
-                  <SortableBoardRow
-                    key={board.id}
-                    board={board}
-                    taskCount={taskCountByBoard(board.key)}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          </div>
-        </div>
-      </div>
-    </AppLayout>
-  );
+  const store = useStore();
+  const activeKanban = selectActiveKanban(store);
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState<"kanban" | "column" | null>(null);
+  const unavailableKinds = (exceptId?: string) => store.columns.filter((column) => column.id !== exceptId && column.kind !== "normal").map((column) => column.kind);
+  const success = (title: string) => store.addToast({ type: "success", title, message: "Alterações salvas." });
+  return <AppLayout title={`Configurações${activeKanban ? ` / ${activeKanban.name}` : ""}`}>
+    <div className="max-w-3xl mx-auto space-y-6 py-2">
+      <div className="flex items-center gap-3"><Settings size={24} /><div><h1 className="text-xl font-semibold">Configurações</h1><p className="text-sm text-[var(--c-muted)]">Gerencie Kanbans e suas colunas. As contagens incluem tarefas arquivadas.</p></div></div>
+      <section className="p-4 rounded-xl bg-[var(--c-surface)] border border-[var(--c-border)] space-y-3">
+        <div className="flex justify-between items-center"><h2 className="font-semibold">Kanbans</h2><button className={`${buttonClass} flex items-center gap-1`} onClick={() => setCreating("kanban")}><Plus size={14} />Novo Kanban</button></div>
+        {creating === "kanban" && <EntityForm initial={emptyForm} isKanban suggestSlug={(name) => uniqueKanbanSlug(name, store.kanbans)} onCancel={() => setCreating(null)} onSave={async (form) => {
+          const created = await store.createKanban({ name: form.name, slug: form.slug, color: form.color });
+          if (!created) return false;
+          navigate(`/configuracoes/${created.slug}`); success("Kanban criado"); return true;
+        }} />}
+        <SortableList ids={store.kanbans.map((kanban) => kanban.id)} onReorder={store.reorderKanbans}>
+          {store.kanbans.map((kanban) => <EntityRow key={kanban.id} id={kanban.id} isKanban active={kanban.id === store.activeKanbanId} count={kanban.taskCount} form={{ ...kanban, kind: "normal" }} onSelect={() => navigate(`/configuracoes/${kanban.slug}`)} onDelete={() => store.deleteKanban(kanban.id)} onSave={async (form) => {
+            const ok = await store.updateKanban(kanban.id, { name: form.name, slug: form.slug, color: form.color });
+            if (ok) { if (kanban.id === store.activeKanbanId) navigate(`/configuracoes/${form.slug}`, { replace: true }); success("Kanban atualizado"); }
+            return ok;
+          }} />)}
+        </SortableList>
+      </section>
+      {activeKanban && <section className="p-4 rounded-xl bg-[var(--c-surface)] border border-[var(--c-border)] space-y-3">
+        <div className="flex flex-wrap gap-2 justify-between items-center"><h2 className="font-semibold">Colunas / {activeKanban.name}</h2><button className={`${buttonClass} flex items-center gap-1`} onClick={() => setCreating("column")}><Plus size={14} />Nova coluna</button></div>
+        <p className="text-xs text-[var(--c-muted)]">Uma coluna concluída e uma bloqueada por Kanban. Arraste a alça para reorganizar.</p>
+        {creating === "column" && <EntityForm initial={emptyForm} isKanban={false} unavailableKinds={unavailableKinds()} onCancel={() => setCreating(null)} onSave={async (form) => {
+          const base = slugify(form.name) || "coluna";
+          let key = base; let suffix = 2;
+          while (store.columns.some((column) => column.key === key)) key = `${base}-${suffix++}`;
+          const ok = await store.createColumn({ key, name: form.name, color: form.color, kind: form.kind });
+          if (ok) success("Coluna criada"); return ok;
+        }} />}
+        <SortableList ids={store.columns.map((column) => column.id)} onReorder={store.reorderColumns}>
+          {store.columns.map((column) => <EntityRow key={column.id} id={column.id} isKanban={false} count={store.tasks.filter((task) => task.columnId === column.id).length} form={{ ...column, slug: "" }} unavailableKinds={unavailableKinds(column.id)} onDelete={() => store.deleteColumn(column.id)} onSave={async (form) => {
+            const ok = await store.updateColumn(column.id, { name: form.name, color: form.color, kind: form.kind });
+            if (ok) success("Coluna atualizada"); return ok;
+          }} />)}
+        </SortableList>
+        {!store.columns.length && <p className="text-sm text-[var(--c-muted)]">Adicione uma coluna para criar tarefas neste Kanban.</p>}
+      </section>}
+    </div>
+  </AppLayout>;
 }
