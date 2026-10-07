@@ -19,6 +19,10 @@ import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/utils/supabase";
+import { isTaskCompleted } from "@/lib/kanban";
+
+const EMPTY_ACTIVITY: ActivityEntry[] = [];
+const EMPTY_COMMENTS: Comment[] = [];
 
 import {
   priorityColors,
@@ -26,7 +30,7 @@ import {
   priorityDisplayNames,
   departmentDisplayNames,
 } from "@/types";
-import type { Task, TaskPriority, TaskStatus, Department } from "@/types";
+import type { Task, TaskPriority, Department, ActivityEntry, Comment } from "@/types";
 
 const priorityIcons: Record<TaskPriority, React.ReactNode> = {
   urgent: <AlertCircle size={13} />,
@@ -58,11 +62,20 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 export function TaskModal() {
+  const open = useStore((state) => state.taskModalOpen);
+  const mode = useStore((state) => state.taskModalMode);
+  const taskId = useStore((state) => state.taskModalTaskId);
+  const initialColumnId = useStore((state) => state.taskModalDefaultColumnId);
+  const kanbanId = useStore((state) => state.activeKanbanId);
+  if (!open || !kanbanId) return null;
+  return <TaskModalForm key={`${kanbanId}:${mode}:${taskId ?? initialColumnId ?? "new"}`} />;
+}
+
+function TaskModalForm() {
   const {
-    taskModalOpen,
     taskModalMode,
     taskModalTaskId,
-    taskModalDefaultStatus,
+    taskModalDefaultColumnId,
     closeTaskModal,
     tasks,
     users,
@@ -77,11 +90,12 @@ export function TaskModal() {
     archiveTask,
   } = useStore();
 
-  const boards = useStore((s) => s.boards);
+  const columns = useStore((s) => s.columns);
+  const activeKanbanId = useStore((state) => state.activeKanbanId);
   const customers = useStore((s) => s.customers);
-  const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
-  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
-  const statusBg = Object.fromEntries(boards.map((b) => [b.key, `${b.color}26`]));
+  const statusColors = Object.fromEntries(columns.map((b) => [b.id, b.color]));
+  const statusDisplayNames = Object.fromEntries(columns.map((b) => [b.id, b.name]));
+  const statusBg = Object.fromEntries(columns.map((b) => [b.id, `${b.color}26`]));
 
   const perms = usePermissions();
   const isMobile = useIsMobile();
@@ -93,18 +107,29 @@ export function TaskModal() {
 
   const isEditing = taskModalMode !== "view";
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [status, setStatus] = useState<TaskStatus>(taskModalDefaultStatus || "novo");
-  const [department, setDepartment] = useState<Department>("suporte");
-  const [assigneeId, setAssigneeId] = useState<string | null>(null);
-  const [dueDate, setDueDate] = useState<string>("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [formTitle, setTitle] = useState(existingTask?.title ?? "");
+  const title = isEditing ? formTitle : existingTask?.title ?? formTitle;
+  const [formDescription, setDescription] = useState(existingTask?.description ?? "");
+  const description = isEditing ? formDescription : existingTask?.description ?? formDescription;
+  const [formPriority, setPriority] = useState<TaskPriority>(existingTask?.priority ?? "medium");
+  const priority = isEditing ? formPriority : existingTask?.priority ?? formPriority;
+  const [formColumnId, setColumnId] = useState<string>(existingTask?.columnId ?? taskModalDefaultColumnId ?? columns[0]?.id ?? "");
+  const columnId = isEditing ? formColumnId : existingTask?.columnId ?? formColumnId;
+  const [formDepartment, setDepartment] = useState<Department>(existingTask?.department ?? currentUser?.department ?? "suporte");
+  const department = isEditing ? formDepartment : existingTask?.department ?? formDepartment;
+  const [formAssigneeId, setAssigneeId] = useState<string | null>(existingTask ? existingTask.assigneeId : currentUser?.id ?? null);
+  const assigneeId = isEditing ? formAssigneeId : existingTask ? existingTask.assigneeId : formAssigneeId;
+  const [formDueDate, setDueDate] = useState<string>(existingTask?.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : "");
+  const dueDate = isEditing ? formDueDate : existingTask?.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : "";
+  const [formTags, setTags] = useState<string[]>(existingTask?.tags ?? []);
+  const tags = isEditing ? formTags : existingTask?.tags ?? formTags;
   const [tagInput, setTagInput] = useState("");
-  const [idRfc, setIdRfc] = useState<number | null>(null);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [idRfc, setIdRfc] = useState<number | null>(existingTask?.idRfc ?? null);
+  const [customerId, setCustomerId] = useState<string | null>(existingTask?.customerId ?? null);
+  const [customerSearch, setCustomerSearch] = useState(() => {
+    const customer = customers.find((entry) => entry.id === existingTask?.customerId);
+    return customer ? `${customer.cod} :: ${customer.nome}` : "";
+  });
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentImage, setCommentImage] = useState<File | null>(null);
@@ -121,41 +146,7 @@ export function TaskModal() {
       void fetchComments(taskModalTaskId);
       void fetchActivityLog(taskModalTaskId);
     }
-  }, [taskModalTaskId, taskModalMode]);
-
-  useEffect(() => {
-    if (existingTask) {
-      setTitle(existingTask.title);
-      setDescription(existingTask.description);
-      setPriority(existingTask.priority);
-      setStatus(existingTask.status);
-      setDepartment(existingTask.department);
-      setAssigneeId(existingTask.assigneeId);
-      setDueDate(existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : "");
-      setTags(existingTask.tags);
-      setIdRfc(existingTask.idRfc ?? null);
-      const cid = existingTask.customerId ?? null;
-      setCustomerId(cid);
-      if (cid) {
-        const c = customers.find((x) => x.id === cid);
-        setCustomerSearch(c ? `${c.cod} :: ${c.nome}` : "");
-      } else {
-        setCustomerSearch("");
-      }
-    } else if (taskModalMode === "create") {
-      setTitle("");
-      setDescription("");
-      setPriority("medium");
-      setStatus(taskModalDefaultStatus || "novo");
-      setDepartment(currentUser?.department || "suporte");
-      setAssigneeId(currentUser?.id || null);
-      setDueDate("");
-      setTags([]);
-      setIdRfc(null);
-      setCustomerId(null);
-      setCustomerSearch("");
-    }
-  }, [existingTask, taskModalMode, taskModalDefaultStatus, currentUser?.department]);
+  }, [taskModalTaskId, taskModalMode, fetchComments, fetchActivityLog]);
 
   const canEdit =
     taskModalMode === "create" ||
@@ -169,6 +160,15 @@ export function TaskModal() {
       return;
     }
 
+    const target = columns.find((column) => column.id === columnId);
+    const taskKanbanId = existingTask?.kanbanId ?? activeKanbanId;
+    if (!currentUser || !target || target.kanbanId !== taskKanbanId ||
+      (taskModalMode === "create" && !perms.canCreateInColumn(columnId)) ||
+      (existingTask && columnId !== existingTask.columnId && !perms.canMoveToColumn(existingTask.columnId, columnId))) {
+      addToast({ type: "error", title: "Coluna inválida", message: "Selecione uma coluna permitida deste Kanban." });
+      return;
+    }
+
     savingRef.current = true;
     setSaving(true);
 
@@ -179,7 +179,8 @@ export function TaskModal() {
         title: title.trim(),
         description: description.trim(),
         priority,
-        status,
+        columnId,
+        kanbanId: target.kanbanId,
         department,
         assigneeId,
         customerId,
@@ -209,8 +210,8 @@ export function TaskModal() {
       if (title !== existingTask.title) updates.title = title;
       if (description !== existingTask.description) updates.description = description;
       if (priority !== existingTask.priority) updates.priority = priority;
-      const statusChanged = status !== existingTask.status;
-      if (statusChanged) updates.status = status;
+      if (columnId !== existingTask.columnId) updates.columnId = columnId;
+      if (department !== existingTask.department) updates.department = department;
       if (assigneeId !== existingTask.assigneeId) updates.assigneeId = assigneeId;
       if (dueDate !== (existingTask.dueDate ? format(existingTask.dueDate, "yyyy-MM-dd") : ""))
         updates.dueDate = dueDate ? new Date(dueDate) : null;
@@ -221,14 +222,6 @@ export function TaskModal() {
       if (Object.keys(updates).length > 0) {
         const updated = await updateTask(existingTask.id, updates);
         if (!updated) { savingRef.current = false; setSaving(false); return; }
-        if (statusChanged) {
-          await addActivityEntry(existingTask.id, {
-            taskId: existingTask.id,
-            userId: currentUser!.id,
-            action: "status_changed",
-            details: `alterou o status para ${statusDisplayNames[status]}`,
-          });
-        }
         addToast({ type: "success", title: "Sucesso", message: `Tarefa atualizada` });
       }
     }
@@ -300,14 +293,8 @@ export function TaskModal() {
   };
 
   const task = existingTask;
-  const activityLog = task?.activityLog || [];
-  const comments = task?.comments || [];
-
-  const toMs = (value: unknown) => {
-    const d = value instanceof Date ? value : new Date(value as string);
-    const ms = d.getTime();
-    return Number.isFinite(ms) ? ms : 0;
-  };
+  const activityLog = task?.activityLog ?? EMPTY_ACTIVITY;
+  const comments = task?.comments ?? EMPTY_COMMENTS;
 
   // Merged feed: non-comment activity entries + comment objects
   type FeedItem =
@@ -315,6 +302,7 @@ export function TaskModal() {
     | { kind: "comment"; comment: (typeof comments)[number] };
 
   const feedItems = useMemo((): FeedItem[] => {
+    const toMs = (value: Date) => value.getTime();
     const acts: FeedItem[] = activityLog
       .filter((e) => e.action !== "commented")
       .map((e) => ({ kind: "activity" as const, entry: e }));
@@ -349,8 +337,6 @@ export function TaskModal() {
     view: { label: "Visualizar", bg: "rgba(138,138,138,0.12)", color: "#8A8A8A" },
   }[taskModalMode];
 
-  if (!taskModalOpen) return null;
-
   return (
     <>
     <div className={`fixed inset-0 z-40 flex ${isMobile ? "items-end" : "items-center"} justify-center`} onClick={closeTaskModal}>
@@ -358,6 +344,9 @@ export function TaskModal() {
       {isMobile && <div className="absolute inset-0 bg-black/50" />}
 
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={taskModalMode === "create" ? "Nova tarefa" : "Detalhes da tarefa"}
         className={`relative bg-[var(--c-surface)] flex flex-col overflow-hidden ${isMobile ? "w-full h-[96vh] rounded-t-2xl rounded-b-none" : "rounded-2xl max-w-[780px] w-[92vw] max-h-[88vh] shadow-[0_24px_64px_rgba(0,0,0,0.7)]"}`}
         style={{ animation: "modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both" }}
         onClick={(e) => e.stopPropagation()}
@@ -404,6 +393,7 @@ export function TaskModal() {
               </button>
             )}
             <button
+              aria-label="Fechar tarefa"
               onClick={closeTaskModal}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface-3)] transition-colors"
             >
@@ -465,15 +455,16 @@ export function TaskModal() {
                 <div>
                   <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Status</label>
                   <div className="flex gap-1.5 flex-wrap">
-                    {boards.map((b) => (
+                    {columns.map((b) => (
                       <button
-                        key={b.key}
-                        onClick={() => setStatus(b.key)}
+                        key={b.id}
+                        onClick={() => setColumnId(b.id)}
+                        disabled={taskModalMode === "create" ? !perms.canCreateInColumn(b.id) : !!existingTask && b.id !== existingTask.columnId && !perms.canMoveToColumn(existingTask.columnId, b.id)}
                         className="inline-flex items-center px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg text-[11px] md:text-[12px] font-semibold transition-all"
                         style={{
-                          background: status === b.key ? `${b.color}26` : "transparent",
-                          color: status === b.key ? b.color : "var(--c-muted)",
-                          border: `1.5px solid ${status === b.key ? b.color + "60" : "var(--c-border)"}`,
+                          background: columnId === b.id ? `${b.color}26` : "transparent",
+                          color: columnId === b.id ? b.color : "var(--c-muted)",
+                          border: `1.5px solid ${columnId === b.id ? b.color + "60" : "var(--c-border)"}`,
                         }}
                       >
                         {b.name}
@@ -760,9 +751,9 @@ export function TaskModal() {
                   <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Status</span>
                   <span
                     className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
-                    style={{ background: statusBg[status], color: statusColors[status] }}
+                    style={{ background: statusBg[columnId], color: statusColors[columnId] }}
                   >
-                    {statusDisplayNames[status]}
+                    {statusDisplayNames[columnId]}
                   </span>
                 </div>
                 {/* Assignee */}
@@ -948,7 +939,7 @@ export function TaskModal() {
             </button>
             {task &&
               taskModalMode !== "create" &&
-              task.status === "concluido" &&
+              isTaskCompleted(task, columns) &&
               !task.archived &&
               perms.canArchiveTask() && (
                 <button

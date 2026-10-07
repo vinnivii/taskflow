@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   useDroppable,
+  pointerWithin,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -18,7 +19,8 @@ import { KanbanCard } from "@/components/KanbanCard";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { Task, TaskStatus } from "@/types";
+import { selectActiveKanban } from "@/lib/kanban";
+import type { Task } from "@/types";
 
 const MONITOR_URL = "https://monitoramento-softcomshop.softcomapps.com/status/monitor";
 const MONITOR_PROXY_BASE_URL = "/api/uptime-kuma";
@@ -190,11 +192,11 @@ function ServiceMonitor() {
 }
 
 function MobileStatusTab({
-  status, count, isActive, isDragging, onClick, color, label,
+  columnId, count, isActive, isDragging, onClick, color, label,
 }: {
-  status: TaskStatus; count: number; isActive: boolean; isDragging: boolean; onClick: () => void; color: string; label: string;
+  columnId: string; count: number; isActive: boolean; isDragging: boolean; onClick: () => void; color: string; label: string;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: columnId });
   return (
     <button
       ref={setNodeRef}
@@ -219,6 +221,7 @@ function MobileStatusTab({
 }
 
 export function Quadro() {
+  const activeKanban = useStore(selectActiveKanban);
   const tasks = useStore((s) => s.tasks);
   const filters = useStore((s) => s.filters);
   const searchQuery = useStore((s) => s.searchQuery);
@@ -227,18 +230,13 @@ export function Quadro() {
   const addToast = useStore((s) => s.addToast);
   const perms = usePermissions();
 
-  const boards = useStore((s) => s.boards);
-  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
+  const columns = useStore((s) => s.columns);
+  const statusDisplayNames = Object.fromEntries(columns.map((b) => [b.id, b.name]));
 
   const isMobile = useIsMobile();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeColumn, setActiveColumn] = useState<TaskStatus>(boards[0]?.key ?? "novo");
-
-  useEffect(() => {
-    if (boards.length > 0 && !boards.find((b) => b.key === activeColumn)) {
-      setActiveColumn(boards[0].key);
-    }
-  }, [boards]);
+  const [preferredColumn, setActiveColumn] = useState("");
+  const activeColumn = columns.some((column) => column.id === preferredColumn) ? preferredColumn : columns[0]?.id ?? "";
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -249,7 +247,7 @@ export function Quadro() {
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
-    let result = [...tasks];
+    let result = tasks.filter((task) => task.kanbanId === activeKanban?.id);
 
     // Archived tasks should not appear on the Kanban board
     result = result.filter((t) => !t.archived);
@@ -258,6 +256,8 @@ export function Quadro() {
     if (filters.department !== "all") {
       result = result.filter((t) => t.department === filters.department);
     }
+
+    if (filters.columnId !== "all") result = result.filter((task) => task.columnId === filters.columnId);
 
     // Priority filter
     if (filters.priority !== "all") {
@@ -307,26 +307,25 @@ export function Quadro() {
     });
 
     return result;
-  }, [tasks, filters, searchQuery]);
+  }, [tasks, filters, searchQuery, activeKanban?.id]);
 
   // Group by status
   const tasksByColumn = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
-    for (const b of boards) grouped[b.key] = [];
+    for (const b of columns) grouped[b.id] = [];
     for (const task of filteredTasks) {
-      if (!grouped[task.status]) grouped[task.status] = [];
-      grouped[task.status].push(task);
+      if (!grouped[task.columnId]) grouped[task.columnId] = [];
+      grouped[task.columnId].push(task);
     }
     return grouped;
-  }, [filteredTasks, boards]);
+  }, [filteredTasks, columns]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.id);
     if (task) setActiveTask(task);
   }, [tasks]);
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveTask(null);
 
@@ -336,30 +335,31 @@ export function Quadro() {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
 
-      const newStatus = over.id as TaskStatus;
+      const newColumnId = String(over.id);
+      const target = columns.find((column) => column.id === newColumnId);
+      if (!target || target.kanbanId !== task.kanbanId || task.kanbanId !== activeKanban?.id) return;
 
       // Check if status actually changed
-      if (task.status === newStatus) return;
+      if (task.columnId === newColumnId) return;
 
       // Check permission
-      if (!perms.canMoveToColumn(task.status, newStatus)) {
+      if (!perms.canMoveToColumn(task.columnId, newColumnId)) {
         addToast({
           type: "error",
           title: "Permissao insuficiente",
-          message: `Voce nao pode mover de ${statusDisplayNames[task.status]} para ${statusDisplayNames[newStatus]}`,
+          message: `Voce nao pode mover de ${statusDisplayNames[task.columnId]} para ${statusDisplayNames[newColumnId]}`,
         });
         return;
       }
 
-      moveTask(taskId, newStatus);
+      const moved = await moveTask(taskId, newColumnId);
+      if (!moved) return;
       addToast({
         type: "success",
         title: "Tarefa movida",
-        message: `Movida para ${statusDisplayNames[newStatus]}`,
+        message: `Movida para ${statusDisplayNames[newColumnId]}`,
       });
-    },
-    [tasks, perms, moveTask, addToast]
-  );
+    };
 
   // Horizontal scroll with mouse wheel (Shift key)
   useEffect(() => {
@@ -382,22 +382,22 @@ export function Quadro() {
 
   if (isMobile) {
     return (
-      <AppLayout title="Quadro">
+      <AppLayout title={`Quadro / ${activeKanban?.name ?? ""}`}>
         <div className="flex flex-col h-full">
           <div className="mb-4">
-            <FilterBar />
+            <FilterBar showStatusFilter />
           </div>
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             {/* Status tabs — also act as drop zones when dragging */}
             <div className="flex overflow-x-auto gap-2 pb-3 mb-4 scrollbar-none">
-              {boards.map((b) => (
+              {columns.map((b) => (
                 <MobileStatusTab
-                  key={b.key}
-                  status={b.key}
-                  count={tasksByColumn[b.key]?.length ?? 0}
-                  isActive={activeColumn === b.key}
+                  key={b.id}
+                  columnId={b.id}
+                  count={tasksByColumn[b.id]?.length ?? 0}
+                  isActive={activeColumn === b.id}
                   isDragging={!!activeTask}
-                  onClick={() => setActiveColumn(b.key)}
+                  onClick={() => setActiveColumn(b.id)}
                   color={b.color}
                   label={b.name}
                 />
@@ -445,13 +445,13 @@ export function Quadro() {
   }
 
   return (
-    <AppLayout title="Quadro">
+    <AppLayout title={`Quadro / ${activeKanban?.name ?? ""}`}>
       <div className="flex flex-col h-full">
         {/* Page header */}
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px]">
-              Quadro
+              {activeKanban?.name ?? "Quadro"}
             </h1>
             <span className="text-[13px] text-[var(--c-muted)]">
               ({totalTasks} {totalTasks === 1 ? "tarefa" : "tarefas"})
@@ -462,7 +462,7 @@ export function Quadro() {
 
         {/* Filter bar */}
         <div className="mb-5">
-          <FilterBar />
+          <FilterBar showStatusFilter />
         </div>
 
         {/* Kanban Board */}
@@ -475,12 +475,8 @@ export function Quadro() {
             ref={boardRef}
             className="flex gap-4 overflow-x-auto overflow-y-auto pb-6 flex-1 custom-scrollbar"
           >
-            {boards.map(({ key }) => (
-              <KanbanColumn
-                key={key}
-                status={key}
-                tasks={tasksByColumn[key] ?? []}
-              />
+            {columns.map((column) => (
+              <KanbanColumn key={column.id} column={column} tasks={tasksByColumn[column.id] ?? []} />
             ))}
           </div>
 

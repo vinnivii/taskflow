@@ -4,11 +4,14 @@ import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+import { KanbanSelector } from "./KanbanSelector";
+
 interface TopHeaderProps {
   title: string;
 }
 
 export function TopHeader({ title }: TopHeaderProps) {
+  const columns = useStore((state) => state.columns);
   const currentUser = useStore((s) => s.currentUser);
   const searchQuery = useStore((s) => s.searchQuery);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
@@ -62,25 +65,27 @@ export function TopHeader({ title }: TopHeaderProps) {
   return (
     <header className="header-light h-16 bg-[var(--c-surface)] border-b border-[var(--c-border)] flex items-center justify-between px-4 md:px-6 shrink-0">
       {/* Left */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 min-w-0">
         {isMobile && (
           <button
+            aria-label="Menu"
             onClick={toggleMobileSidebar}
             className="w-9 h-9 flex items-center justify-center text-[var(--c-muted)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] rounded-md transition-colors"
           >
             <Menu size={20} />
           </button>
         )}
-        <h1 className="text-[18px] md:text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px] leading-[30px]">
+        <h1 className="sr-only xl:not-sr-only xl:max-w-[240px] text-[24px] font-semibold text-[var(--c-text)] tracking-[-0.8px] leading-[30px] truncate">
           {title}
         </h1>
+        <KanbanSelector />
       </div>
 
       {/* Center: Search — hidden on mobile unless opened */}
       {!isMobile && (
         <div
-          className={`relative transition-all duration-[150ms] ${
-            searchFocused ? "w-[400px]" : "w-[300px]"
+          className={`relative min-w-0 mx-2 transition-all duration-[150ms] ${
+            searchFocused ? "w-[min(28vw,400px)]" : "w-[min(24vw,300px)]"
           }`}
         >
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)]" />
@@ -126,7 +131,7 @@ export function TopHeader({ title }: TopHeaderProps) {
       )}
 
       {/* Right cluster */}
-      <div className="flex items-center gap-2 md:gap-3">
+      <div className="flex items-center gap-2 xl:gap-3 shrink-0">
         {/* Mobile search icon */}
         {isMobile && (
           <button
@@ -139,7 +144,7 @@ export function TopHeader({ title }: TopHeaderProps) {
 
         {/* Relógio */}
         {!isMobile && (
-          <div className="flex items-center gap-1.5 h-9 px-3 rounded-md bg-[var(--c-surface-3)] border border-[var(--c-border)] select-none">
+          <div className="hidden xl:flex items-center gap-1.5 h-9 px-3 rounded-md bg-[var(--c-surface-3)] border border-[var(--c-border)] select-none">
             <span className="font-mono text-[18px] font-bold text-[var(--c-text)] tracking-[1px] leading-none tabular-nums">
               {clock}
             </span>
@@ -149,11 +154,12 @@ export function TopHeader({ title }: TopHeaderProps) {
         {/* Botão Criar Tarefa — somente para desktop */}
         {!isMobile && perms.canCreateTask() && (
           <button
-            onClick={() => openTaskModal("create", null, "novo")}
+            aria-label="Nova Tarefa"
+            onClick={() => openTaskModal("create", null, columns.find((column) => perms.canCreateInColumn(column.id))?.id)}
             className="flex items-center gap-2 h-9 px-4 bg-[#F2C94C] hover:bg-[#F5D76A] text-[#0A0A0A] text-[13px] font-semibold rounded-md transition-all hover:-translate-y-px"
           >
             <Plus size={16} />
-            <span>Nova Tarefa</span>
+            <span className="hidden xl:inline">Nova Tarefa</span>
           </button>
         )}
 

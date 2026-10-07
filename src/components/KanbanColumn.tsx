@@ -3,27 +3,25 @@ import { Plus } from "lucide-react";
 import { KanbanCard } from "./KanbanCard";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
-import type { Task, TaskStatus } from "@/types";
+import type { Task, KanbanColumn as Column } from "@/types";
 
 interface KanbanColumnProps {
-  status: TaskStatus;
+  column: Column;
   tasks: Task[];
 }
 
-export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
   const openTaskModal = useStore((s) => s.openTaskModal);
-  const boards = useStore((s) => s.boards);
   const perms = usePermissions();
 
   const { setNodeRef, isOver } = useDroppable({
-    id: status,
-    data: { status },
+    id: column.id,
+    data: { columnId: column.id, kanbanId: column.kanbanId },
   });
 
-  const canCreate = perms.canCreateInColumn(status);
-  const board = boards.find((b) => b.key === status);
-  const color = board?.color ?? "#8A8A8A";
-  const title = board?.name ?? status;
+  const canCreate = perms.canCreateInColumn(column.id);
+  const color = column.color;
+  const title = column.name;
 
   return (
     <div className="flex flex-col min-w-[320px] max-w-[320px] shrink-0">
@@ -42,7 +40,8 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
         </div>
         {canCreate && (
           <button
-            onClick={() => openTaskModal("create", null, status)}
+            aria-label={`Nova tarefa em ${column.name}`}
+            onClick={() => openTaskModal("create", null, column.id)}
             className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors"
           >
             <Plus size={18} />
@@ -69,7 +68,7 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
             </div>
             {canCreate && (
               <button
-                onClick={() => openTaskModal("create", null, status)}
+                onClick={() => openTaskModal("create", null, column.id)}
                 className="mt-3 text-[#F2C94C] text-[11px] font-medium hover:underline"
               >
                 Criar tarefa
