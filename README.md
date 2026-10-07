@@ -185,3 +185,11 @@ npm run build
 ```
 
 O output fica em `dist/` e pode ser servido por qualquer host estático (Vercel, Netlify, etc.).
+
+## Criação de usuários
+
+Para executar `npm run seed:users`, configure `SUPABASE_SERVICE_ROLE_KEY` e `SEED_USERS_PASSWORD` no `.env` local. Não publique esses valores.
+
+## Licença
+
+Este projeto está licenciado sob a [licença MIT](LICENSE).

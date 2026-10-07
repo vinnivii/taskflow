@@ -2,9 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const seedPassword = process.env.SEED_USERS_PASSWORD;
 
-if (!url || !serviceKey) {
-  console.error("Faltando VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY no .env");
+if (!url || !serviceKey || !seedPassword) {
+  console.error("Faltando VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ou SEED_USERS_PASSWORD no .env");
   process.exit(1);
 }
 
@@ -16,21 +17,21 @@ const USERS = [
   {
     name: "Evanilson",
     email: "evanilson.softcom@gmail.com",
-    password: "REDACTED_USE_SEED_USERS_PASSWORD",
+    password: seedPassword,
     role: "supervisor_geral",
     department: "suporte",
   },
   {
     name: "Marcus",
     email: "vinnivii00@gmail.com",
-    password: "REDACTED_USE_SEED_USERS_PASSWORD",
+    password: seedPassword,
     role: "supervisor_geral",
     department: "suporte",
   },
   {
     name: "Douglas",
     email: "douglass.softcom@gmail.com",
-    password: "REDACTED_USE_SEED_USERS_PASSWORD",
+    password: seedPassword,
     role: "supervisor_geral",
     department: "suporte",
   },
