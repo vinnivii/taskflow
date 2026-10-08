@@ -25,6 +25,14 @@ export async function mockSupabase(page: Page, role = "supervisor_geral") {
   };
   for (const task of tables.tasks) tables.activity_logs.push({ id: randomUUID(), task_id: task.id, user_id: actor.id, action: "created", details: `Atividade ${task.title}`, created_at: timestamp() });
   const taskRequests: (string | null)[] = [];
+  const adminRequests: string[] = [];
+  const adminPassword = randomUUID();
+  const memberPasswords = new Map<string, string>();
+  const removeTasks = (ids: unknown[]) => {
+    tables.tasks = tables.tasks.filter((row) => !ids.includes(row.id));
+    for (const table of ["comments", "activity_logs"]) tables[table] = tables[table].filter((row) => !ids.includes(row.task_id));
+    tables.notifications.forEach((row) => { if (ids.includes(row.task_id)) row.task_id = null; });
+  };
   await page.route("**/api/uptime-kuma/**", (route) => route.fulfill({ json: { publicGroupList: [], heartbeatList: {} } }));
   await page.route("https://timeapi.io/**", (route) => route.fulfill({ json: { dateTime: timestamp() } }));
   await page.route("http://127.0.0.1:54321/**", async (route) => {
@@ -35,6 +43,25 @@ export async function mockSupabase(page: Page, role = "supervisor_geral") {
       const json = url.pathname.endsWith("/user") ? authUser : { access_token: jwt, refresh_token: "test-refresh", token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: authUser };
       await route.fulfill({ json }); return;
     }
+    if (url.pathname.startsWith("/functions/v1/")) {
+      const name = parts.at(-1)!; adminRequests.push(name); const payload = request.postDataJSON();
+      if (name === "cleanup-task-storage") { await route.fulfill({ json: { completed: 0, pending: 0 } }); return; }
+      if (!["supervisor_geral", "supervisor_adjunto"].includes(role) || (name !== "delete-kanban" && role !== "supervisor_geral")) { await route.fulfill({ status: 403, json: { error: "Sem permissão." } }); return; }
+      if (name === "create-member") {
+        const member = { id: randomUUID(), created_at: timestamp(), avatar: "", name: payload.name, email: payload.email, role: payload.role, department: payload.department };
+        tables.users.push(member); memberPasswords.set(member.id, payload.password);
+        await route.fulfill({ json: { success: true, memberId: member.id } }); return;
+      }
+      if (name === "reset-member-password") { memberPasswords.set(payload.memberId, payload.password); await route.fulfill({ json: { success: true } }); return; }
+      if (name === "delete-kanban") {
+        if (payload.password !== adminPassword) { await route.fulfill({ status: 403, json: { error: "Senha administrativa incorreta." } }); return; }
+        const tasks = tables.tasks.filter((task) => task.kanban_id === payload.sourceId);
+        tasks.forEach((task) => { task.kanban_id = payload.destinationId; task.column_id = payload.mapping[task.column_id as string]; task.status = tables.kanban_columns.find((column) => column.id === task.column_id)?.key; });
+        tables.kanban_columns = tables.kanban_columns.filter((column) => column.kanban_id !== payload.sourceId);
+        tables.kanbans = tables.kanbans.filter((kanban) => kanban.id !== payload.sourceId);
+        await route.fulfill({ json: { success: true, transferred: tasks.length } }); return;
+      }
+    }
     if (parts.includes("rpc")) {
       const name = parts.at(-1); const payload = request.postDataJSON();
       let json: unknown = null;
@@ -44,6 +71,16 @@ export async function mockSupabase(page: Page, role = "supervisor_geral") {
       } else if (name === "reorder_kanbans" || name === "reorder_kanban_columns") {
         const table = name === "reorder_kanbans" ? "kanbans" : "kanban_columns";
         payload.p_ids.forEach((id: string, position: number) => { const row = tables[table].find((entry) => entry.id === id); if (row) row.position = position; });
+      } else if (name === "kanban_deletion_summary") {
+        json = tables.kanban_columns.filter((column) => column.kanban_id === payload.p_kanban_id).map((column) => ({ ...column, task_count: tables.tasks.filter((task) => task.column_id === column.id).length, archived_count: tables.tasks.filter((task) => task.column_id === column.id && task.archived).length }));
+      } else if (name === "delete_task_with_cleanup") {
+        const task = tables.tasks.find((row) => row.id === payload.p_task_id && row.kanban_id === payload.p_kanban_id);
+        if (task) { json = task.id; removeTasks([task.id]); }
+      } else if (name === "delete_column_with_tasks") {
+        const tasks = tables.tasks.filter((task) => task.column_id === payload.p_column_id);
+        if (payload.p_mode === "transfer") tasks.forEach((task) => { task.column_id = payload.p_destination_id; task.status = tables.kanban_columns.find((column) => column.id === payload.p_destination_id)?.key; });
+        else removeTasks(tasks.map((task) => task.id));
+        tables.kanban_columns = tables.kanban_columns.filter((column) => column.id !== payload.p_column_id); json = { affected: tasks.length };
       }
       await route.fulfill({ json }); return;
     }
@@ -75,7 +112,7 @@ export async function mockSupabase(page: Page, role = "supervisor_geral") {
     const single = request.headers().accept?.includes("application/vnd.pgrst.object");
     await route.fulfill({ status: 200, json: single ? rows[0] ?? null : rows });
   });
-  return { tables, taskRequests, principal, development, initial, work, final, blocked };
+  return { tables, taskRequests, adminRequests, adminPassword, memberPasswords, principal, development, initial, work, final, blocked };
 }
 
 export async function login(page: Page) {

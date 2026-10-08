@@ -1,0 +1,30 @@
+name: Clean up deleted task files
+
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: task-storage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run Supabase cleanup worker
+        env:
+          CLEANUP_URL: ${{ vars.TASK_STORAGE_CLEANUP_URL }}
+          CLEANUP_SECRET: ${{ secrets.TASK_STORAGE_CLEANUP_SECRET }}
+        run: |
+          test -n "$CLEANUP_URL" && test -n "$CLEANUP_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --connect-timeout 10 --max-time 120 \
+            --request POST \
+            --header "x-cleanup-secret: $CLEANUP_SECRET" \
+            --header 'Content-Type: application/json' \
+            --data '{}' "$CLEANUP_URL"

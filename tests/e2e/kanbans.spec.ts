@@ -27,7 +27,7 @@ test("login, route refresh, safe fallback and strict page/report isolation", asy
 
 test("create Kanban, custom columns, task from plus button, slug rename and deletion counts", async ({ page }) => {
   const mock = await mockSupabase(page); await login(page); await page.goto("/configuracoes/principal");
-  await expect(page.getByLabel("Excluir Principal", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Excluir Principal", { exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Novo Kanban", exact: true }).click();
   await page.getByLabel("Nome do Kanban", { exact: true }).fill("Operação Interna");
   await expect(page.getByLabel("Slug do Kanban")).toHaveValue("operacao-interna");
@@ -54,8 +54,8 @@ test("create Kanban, custom columns, task from plus button, slug rename and dele
   const column = mock.tables.kanban_columns.find((entry) => entry.kanban_id === parent.id && entry.name === "Homologação")!;
   expect(task.kanban_id).toBe(parent.id); expect(task.column_id).toBe(column.id);
   await page.goto("/configuracoes/operacao-v2");
-  await expect(page.getByLabel("Excluir Operação Interna", { exact: true })).toBeDisabled();
-  await expect(page.getByLabel("Excluir Homologação", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Excluir Operação Interna", { exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Excluir Homologação", { exact: true })).toBeEnabled();
   await page.goto("/quadro/principal"); await expect(page.getByText("Tarefa nova isolada", { exact: true })).toHaveCount(0);
 });
 
@@ -152,6 +152,7 @@ test("selection with expanded/collapsed sidebar and recovery after deleting the 
   await page.goto("/configuracoes/principal");
   for (const name of ["Desenvolvimento", "Principal"]) {
     await page.getByLabel(`Excluir ${name}`, { exact: true }).click();
+    await page.getByLabel("Senha administrativa", { exact: true }).fill(mock.adminPassword);
     await page.getByRole("button", { name: "Confirmar exclusão", exact: true }).click();
     await expect(page.getByLabel(`Editar ${name}`, { exact: true })).toHaveCount(0);
   }

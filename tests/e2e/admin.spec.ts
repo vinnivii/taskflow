@@ -1,0 +1,131 @@
+import { test, expect } from "@playwright/test";
+import { login, mockSupabase } from "./fixture";
+
+test("member creation, matching-password validation, show/hide, cancellation and reset feedback", async ({ page }) => {
+  const mock = await mockSupabase(page); await login(page); await page.goto("/equipe/principal");
+  await page.getByRole("button", { name: "Criar membro", exact: true }).first().click();
+  await page.getByPlaceholder("Ex: João Silva").fill("Membro Teste");
+  await page.getByPlaceholder("email@softcom.com").fill("member@example.test");
+  await page.getByPlaceholder("Mínimo 6 caracteres").fill("initial-test-password");
+  await page.getByRole("button", { name: "Criar membro", exact: true }).last().click();
+  await page.getByText("Membro Teste", { exact: true }).click();
+  await page.getByRole("button", { name: "Alterar senha", exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Alterar senha", exact: true });
+  await modal.getByLabel("Nova senha", { exact: true }).fill("tiny");
+  await modal.getByLabel("Confirmar nova senha", { exact: true }).fill("tiny");
+  await expect(modal.getByRole("button", { name: "Salvar nova senha" })).toBeDisabled();
+  await modal.getByLabel("Nova senha", { exact: true }).fill("new-test-password");
+  await expect(modal.getByRole("alert")).toHaveText("As senhas devem ser iguais.");
+  await modal.getByLabel("Confirmar nova senha", { exact: true }).fill("new-test-password");
+  await modal.getByRole("button", { name: "Mostrar senha" }).click();
+  await expect(modal.getByLabel("Nova senha", { exact: true })).toHaveAttribute("type", "text");
+  await modal.getByRole("button", { name: "Cancelar", exact: true }).click();
+  expect(mock.adminRequests.filter((name) => name === "reset-member-password")).toHaveLength(0);
+  await page.getByText("Membro Teste", { exact: true }).click();
+  await page.getByRole("button", { name: "Alterar senha", exact: true }).click();
+  await modal.getByLabel("Nova senha", { exact: true }).fill("new-test-password");
+  await modal.getByLabel("Confirmar nova senha", { exact: true }).fill("new-test-password");
+  await modal.getByRole("button", { name: "Salvar nova senha" }).click();
+  await expect(modal).toHaveCount(0);
+  expect(mock.memberPasswords.get(mock.tables.users.find((user) => user.name === "Membro Teste")!.id as string)).toBe("new-test-password");
+  expect(mock.adminRequests.filter((name) => name === "reset-member-password")).toHaveLength(1);
+});
+
+test("task deletion from details and row actions, cancellation, archived tasks and mobile menu", async ({ page }) => {
+  const mock = await mockSupabase(page); await login(page);
+  await page.getByText("Tarefa antiga Principal", { exact: true }).click();
+  await page.getByRole("button", { name: "Excluir tarefa", exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Excluir tarefa?", exact: true });
+  await expect(modal).toContainText("Tarefa antiga Principal"); await expect(modal).toContainText("Principal");
+  await modal.getByRole("button", { name: "Cancelar", exact: true }).click();
+  expect(mock.tables.tasks).toHaveLength(3);
+  await page.getByRole("button", { name: "Excluir tarefa", exact: true }).click();
+  await modal.getByRole("button", { name: "Excluir permanentemente", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0); expect(mock.tables.tasks).toHaveLength(2);
+  const archived = mock.tables.tasks.find((task) => task.title === "Entrega finalizada")!;
+  archived.archived = true; archived.archived_at = new Date().toISOString();
+  await page.goto("/tarefas/desenvolvimento");
+  await page.getByLabel("Ações da tarefa #3").click(); await page.getByRole("menuitem", { name: "Excluir tarefa" }).click();
+  await modal.getByRole("button", { name: "Excluir permanentemente" }).click();
+  await expect(page.getByText("Entrega finalizada", { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel("Ações da tarefa #2").click(); await page.getByRole("menuitem", { name: "Excluir tarefa" }).click();
+  await modal.getByRole("button", { name: "Excluir permanentemente" }).click();
+  await expect(page.getByText("Tarefa Desenvolvimento", { exact: true })).toHaveCount(0);
+  expect(mock.tables.tasks).toHaveLength(0);
+});
+
+test("column transfer, delete-all with archives, empty deletion and unchanged other Kanban", async ({ page }) => {
+  const mock = await mockSupabase(page); await login(page); await page.goto("/configuracoes/principal");
+  await page.getByLabel("Excluir Novo", { exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Excluir coluna", exact: true });
+  await expect(modal).toContainText("Tarefas existentes: 1");
+  await modal.getByLabel("Coluna de destino").selectOption(mock.work.id as string);
+  await modal.getByRole("button", { name: "Transferir e excluir coluna" }).click();
+  await expect(modal).toHaveCount(0); expect(mock.tables.tasks.find((task) => task.id_task === 1)?.column_id).toBe(mock.work.id);
+  await page.getByLabel("Excluir Em Andamento", { exact: true }).click();
+  await modal.getByLabel(/Excluir permanentemente as 1 tarefas/).check();
+  await modal.getByRole("button", { name: "Excluir coluna e tarefas" }).click();
+  await expect(page.getByLabel("Editar Em Andamento", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Excluir Concluído", { exact: true }).click();
+  await modal.getByRole("button", { name: "Excluir coluna e tarefas" }).click();
+  await expect(page.getByLabel("Editar Concluído", { exact: true })).toHaveCount(0);
+  expect(mock.tables.tasks.filter((task) => task.kanban_id === mock.development.id)).toHaveLength(2);
+  mock.tables.tasks.find((task) => task.id_task === 3)!.archived = true;
+  await page.goto("/configuracoes/desenvolvimento");
+  await page.getByLabel("Excluir Finalizado", { exact: true }).click();
+  await expect(modal).toContainText("Não há outra coluna compatível");
+  await modal.getByRole("button", { name: "Excluir coluna e tarefas" }).click();
+  await expect(modal).toHaveCount(0); expect(mock.tables.tasks.filter((task) => task.id_task === 3)).toHaveLength(0);
+});
+
+test("Kanban password errors, editable many-to-one mapping, archives and destination routing", async ({ page }) => {
+  const mock = await mockSupabase(page); await login(page);
+  const archived = mock.tables.tasks.find((task) => task.id_task === 3)!; archived.archived = true; archived.archived_at = new Date().toISOString();
+  const originalIds = mock.tables.tasks.map((task) => task.id);
+  await page.goto("/configuracoes/desenvolvimento"); await page.getByLabel("Excluir Desenvolvimento", { exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Excluir Kanban", exact: true });
+  await modal.getByLabel("Kanban de destino").selectOption(mock.principal.id as string);
+  await modal.getByLabel("Destino de Aberto", { exact: true }).selectOption(mock.work.id as string);
+  const done = mock.tables.kanban_columns.find((column) => column.kanban_id === mock.principal.id && column.kind === "completed")!;
+  await expect(modal.getByLabel("Destino de Finalizado", { exact: true }).locator("option")).toHaveCount(2);
+  await modal.getByLabel("Destino de Finalizado", { exact: true }).selectOption(done.id as string);
+  await modal.getByLabel("Destino de Impedido", { exact: true }).selectOption(mock.work.id as string);
+  await modal.getByLabel("Senha administrativa").fill("wrong-test-password");
+  await expect(modal.getByRole("button", { name: "Transferir tarefas e excluir Kanban" })).toBeEnabled();
+  await modal.getByRole("button", { name: "Transferir tarefas e excluir Kanban" }).click();
+  await expect(modal.getByRole("alert")).toHaveText("Senha administrativa incorreta.");
+  expect(mock.tables.kanbans).toHaveLength(2);
+  await modal.getByLabel("Senha administrativa").fill(mock.adminPassword);
+  await modal.getByRole("button", { name: "Transferir tarefas e excluir Kanban" }).click();
+  await expect(page).toHaveURL(/configuracoes\/principal$/); await expect(modal).toHaveCount(0);
+  expect(mock.tables.tasks.map((task) => task.id)).toEqual(originalIds);
+  expect(mock.tables.tasks.every((task) => task.kanban_id === mock.principal.id)).toBe(true);
+  expect(archived.archived).toBe(true); expect(archived.column_id).toBe(done.id);
+  await page.goto("/tarefas/principal"); await expect(page.getByText("Tarefa Desenvolvimento", { exact: true })).toBeVisible();
+});
+
+test("ordinary users cannot see administrative task/member actions", async ({ page }) => {
+  await mockSupabase(page, "tecnico"); await login(page); await page.goto("/equipe/principal");
+  await expect(page.getByRole("button", { name: "Criar membro", exact: true })).toHaveCount(0);
+  await page.getByText("Supervisor Teste", { exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Alterar senha", exact: true })).toHaveCount(0);
+  await page.goto("/tarefas/principal"); await expect(page.getByLabel("Ações da tarefa #1")).toHaveCount(0);
+  await page.getByText("Tarefa antiga Principal", { exact: true }).click(); await expect(page.getByRole("button", { name: "Excluir tarefa", exact: true })).toHaveCount(0);
+});
+
+test("mobile Kanban mapping stays inside the viewport and can be cancelled without requests", async ({ page }) => {
+  const mock = await mockSupabase(page); await login(page); await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/configuracoes/desenvolvimento"); await page.getByLabel("Excluir Desenvolvimento", { exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Excluir Kanban", exact: true });
+  await modal.getByLabel("Kanban de destino").selectOption(mock.principal.id as string);
+  for (const column of ["Aberto", "Finalizado", "Impedido"]) await modal.getByLabel(`Destino de ${column}`, { exact: true }).selectOption(mock.work.id as string);
+  await modal.getByLabel("Senha administrativa").fill(mock.adminPassword);
+  const bounds = await modal.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
+  await expect(modal.getByRole("button", { name: "Transferir tarefas e excluir Kanban" })).toBeEnabled();
+  await page.screenshot({ path: "test-results/admin-kanban-mobile.png" });
+  await modal.getByRole("button", { name: "Cancelar", exact: true }).click();
+  expect(mock.adminRequests).toHaveLength(0); expect(mock.tables.kanbans).toHaveLength(2);
+});

@@ -14,7 +14,8 @@ import type {
   Department,
   Customer,
 } from "@/types";
-import { supabase, supabaseAdmin } from "@/utils/supabase";
+import { supabase } from "@/utils/supabase";
+import { invokeAdmin } from "@/lib/admin-api";
 import { generateAvatar } from "@/utils/avatar";
 import { getKanbanPermissions, isTaskCompleted, sortColumns } from "@/lib/kanban";
 
@@ -211,6 +212,7 @@ interface AppState {
     role: User["role"];
     department: User["department"];
   }) => Promise<{ success: boolean; error?: string }>;
+  resetMemberPassword: (memberId: string, password: string) => Promise<{ success: boolean; error?: string }>;
 
   // The active ID is a cache of the route, not a second navigation source.
   kanbans: Kanban[];
@@ -223,13 +225,13 @@ interface AppState {
   fetchKanbans: () => Promise<boolean>;
   createKanban: (data: { name: string; slug: string; color: string }) => Promise<Kanban | null>;
   updateKanban: (id: string, data: Partial<Pick<Kanban, "name" | "slug" | "color">>) => Promise<boolean>;
-  deleteKanban: (id: string) => Promise<boolean>;
+  transferAndDeleteKanban: (sourceId: string, destinationId: string | null, mapping: Record<string, string>, password: string) => Promise<{ success: boolean; transferred?: number; error?: string }>;
   reorderKanbans: (ids: string[]) => Promise<boolean>;
   columns: KanbanColumn[];
   fetchColumns: (kanbanId: string) => Promise<boolean>;
   createColumn: (data: { key: string; name: string; color: string; kind: KanbanColumnKind }) => Promise<boolean>;
   updateColumn: (id: string, data: Partial<Pick<KanbanColumn, "name" | "color" | "kind">>) => Promise<boolean>;
-  deleteColumn: (id: string) => Promise<boolean>;
+  deleteColumnWithTasks: (id: string, mode: "transfer" | "delete", destinationId?: string) => Promise<boolean>;
   reorderColumns: (ids: string[]) => Promise<boolean>;
 
   // Tasks
@@ -312,6 +314,8 @@ interface AppState {
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
 }
+
+const deletingTasks = new Set<string>();
 
 export const useStore = create<AppState>((set, get) => {
   let scopeVersion = 0;
@@ -514,21 +518,15 @@ export const useStore = create<AppState>((set, get) => {
     await get().fetchKanbans();
     return true;
   },
-  deleteKanban: async (id) => {
-    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return false;
-    const kanban = get().kanbans.find((entry) => entry.id === id);
-    if (!kanban || kanban.taskCount > 0) {
-      get().addToast({ type: "error", title: "Exclusão bloqueada", message: `Este Kanban possui ${kanban?.taskCount ?? 0} tarefa(s), incluindo arquivadas.` });
-      return false;
-    }
-    const { data, error } = await supabase.from("kanbans").delete().eq("id", id).select("id");
-    if (error || !data?.length) {
-      get().addToast({ type: "error", title: "Erro ao excluir Kanban", message: error?.message ?? "Sem permissão ou Kanban removido." });
-      return false;
-    }
-    if (get().activeKanbanId === id) await get().setActiveKanban(null);
+  transferAndDeleteKanban: async (sourceId, destinationId, mapping, password) => {
+    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return { success: false, error: "Sem permiss\u00e3o." };
+    const { data, error } = await invokeAdmin<{ success: boolean; transferred: number }>("delete-kanban", { sourceId, destinationId, mapping, password });
+    if (error || !data?.success) return { success: false, error: error ?? "Exclus\u00e3o n\u00e3o confirmada." };
+    if (get().activeKanbanId === sourceId) await get().setActiveKanban(null);
     await get().fetchKanbans();
-    return true;
+    if (destinationId && get().kanbans.some((entry) => entry.id === destinationId)) await get().setActiveKanban(destinationId);
+    else if (get().activeKanbanId) await Promise.all([get().fetchColumns(get().activeKanbanId!), get().fetchTasks()]);
+    return { success: true, transferred: data.transferred };
   },
   reorderKanbans: async (ids) => {
     if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return false;
@@ -566,14 +564,13 @@ export const useStore = create<AppState>((set, get) => {
     await get().fetchColumns(activeKanbanId);
     return true;
   },
-  deleteColumn: async (id) => {
-    const { activeKanbanId, columns, tasks, currentUser } = get();
+  deleteColumnWithTasks: async (id, mode, destinationId) => {
+    const { activeKanbanId, columns, currentUser } = get();
     if (!activeKanbanId || !columns.some((column) => column.id === id) || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
-    const count = tasks.filter((task) => task.columnId === id).length;
-    if (count) { get().addToast({ type: "error", title: "Exclusão bloqueada", message: `Esta coluna possui ${count} tarefa(s), incluindo arquivadas.` }); return false; }
-    const { data, error } = await supabase.from("kanban_columns").delete().eq("id", id).eq("kanban_id", activeKanbanId).select("id");
-    if (error || !data?.length) { get().addToast({ type: "error", title: "Erro ao excluir coluna", message: error?.message ?? "Coluna removida ou sem permissão." }); return false; }
-    await get().fetchColumns(activeKanbanId);
+    const { data, error } = await supabase.rpc("delete_column_with_tasks", { p_column_id: id, p_kanban_id: activeKanbanId, p_mode: mode, p_destination_id: destinationId ?? null });
+    if (error || !data) { get().addToast({ type: "error", title: "Erro ao excluir coluna", message: error?.message ?? "Exclus\u00e3o n\u00e3o confirmada." }); return false; }
+    await Promise.all([get().fetchColumns(activeKanbanId), get().fetchTasks(activeKanbanId), get().fetchKanbans()]);
+    if (mode === "delete") void invokeAdmin("cleanup-task-storage", {});
     return true;
   },
   reorderColumns: async (ids) => {
@@ -607,43 +604,17 @@ export const useStore = create<AppState>((set, get) => {
 
     set({ users });
   },
-  createMember: async ({ name, email, password, role, department }) => {
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name },
-    });
-
-    if (authError || !authData.user) {
-      return { success: false, error: authError?.message ?? "Erro ao criar usuário" };
-    }
-
-    const { error: profileError } = await supabaseAdmin.from("users").upsert({
-      id: authData.user.id,
-      name,
-      email,
-      avatar: "",
-      role,
-      department,
-    });
-
-    if (profileError) {
-      return { success: false, error: profileError.message };
-    }
-
-    const newUser: User = {
-      id: authData.user.id,
-      name,
-      email,
-      avatar: generateAvatar(name),
-      role,
-      department,
-      createdAt: new Date(),
-    };
-
-    set((state) => ({ users: [...state.users, newUser].sort((a, b) => a.name.localeCompare(b.name)) }));
+  createMember: async (member) => {
+    if (get().currentUser?.role !== "supervisor_geral") return { success: false, error: "Sem permiss\u00e3o." };
+    const { data, error } = await invokeAdmin<{ success: boolean }>("create-member", member);
+    if (error || !data?.success) return { success: false, error: error ?? "Cadastro n\u00e3o confirmado." };
+    await get().fetchUsers();
     return { success: true };
+  },
+  resetMemberPassword: async (memberId, password) => {
+    if (get().currentUser?.role !== "supervisor_geral") return { success: false, error: "Sem permiss\u00e3o." };
+    const { data, error } = await invokeAdmin<{ success: boolean }>("reset-member-password", { memberId, password });
+    return error || !data?.success ? { success: false, error: error ?? "Altera\u00e7\u00e3o n\u00e3o confirmada." } : { success: true };
   },
 
   // Tasks
@@ -781,21 +752,20 @@ export const useStore = create<AppState>((set, get) => {
   },
   deleteTask: async (taskId) => {
     const task = get().tasks.find((entry) => entry.id === taskId);
-    if (!task || !getKanbanPermissions(get().currentUser, get().columns).canDeleteTask) return false;
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("kanban_id", task.kanbanId);
-
-    if (error) {
-      get().addToast({
-        type: "error",
-        title: "Erro ao remover tarefa",
-        message: error.message,
-      });
-      return false;
-    }
-
-    set((state) => ({ tasks: state.tasks.filter((task) => task.id !== taskId) }));
-    void get().fetchKanbans();
-    return true;
+    if (!task || task.kanbanId !== get().activeKanbanId || !getKanbanPermissions(get().currentUser, get().columns).canDeleteTask || deletingTasks.has(taskId)) return false;
+    deletingTasks.add(taskId);
+    try {
+      const { data, error } = await supabase.rpc("delete_task_with_cleanup", { p_task_id: taskId, p_kanban_id: task.kanbanId });
+      if (error || data !== taskId) {
+        get().addToast({ type: "error", title: "Erro ao remover tarefa", message: error?.message ?? "A exclus\u00e3o da tarefa n\u00e3o foi confirmada." });
+        return false;
+      }
+      set((state) => ({ tasks: state.tasks.filter((entry) => entry.id !== taskId) }));
+      if (get().taskModalTaskId === taskId) get().closeTaskModal();
+      void get().fetchKanbans();
+      void invokeAdmin("cleanup-task-storage", {});
+      return true;
+    } finally { deletingTasks.delete(taskId); }
   },
   moveTask: async (taskId, columnId) => {
     const { currentUser, tasks, columns, activeKanbanId } = get();

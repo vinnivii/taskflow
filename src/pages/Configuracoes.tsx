@@ -7,7 +7,9 @@ import { Settings, Plus, Pencil, Trash2, GripVertical } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useStore } from "@/store/useStore";
 import { selectActiveKanban, slugify, uniqueKanbanSlug } from "@/lib/kanban";
-import type { KanbanColumnKind } from "@/types";
+import type { Kanban, KanbanColumn, KanbanColumnKind } from "@/types";
+import { DeleteColumnDialog } from "@/components/admin/DeleteColumnDialog";
+import { DeleteKanbanDialog } from "@/components/admin/DeleteKanbanDialog";
 
 const PRESET_COLORS = ["#A855F7", "#3B82F6", "#22C55E", "#EF4444", "#F97316", "#F2C94C", "#EC4899", "#14B8A6"];
 const KIND_LABELS = { normal: "Normal", completed: "Concluída", blocked: "Bloqueada" };
@@ -57,11 +59,9 @@ function EntityForm({ initial, isKanban, unavailableKinds = [], suggestSlug, onS
 function EntityRow({ id, form, count, isKanban, active, unavailableKinds, onSelect, onSave, onDelete }: {
   id: string; form: FormState; count: number; isKanban: boolean; active?: boolean;
   unavailableKinds?: KanbanColumnKind[]; onSelect?: () => void;
-  onSave: (form: FormState) => Promise<boolean>; onDelete: () => Promise<boolean>;
+  onSave: (form: FormState) => Promise<boolean>; onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}>
     {editing ? <EntityForm initial={form} isKanban={isKanban} unavailableKinds={unavailableKinds} onSave={onSave} onCancel={() => setEditing(false)} /> :
@@ -74,12 +74,7 @@ function EntityRow({ id, form, count, isKanban, active, unavailableKinds, onSele
         </div>
         <span className="text-[11px] text-[var(--c-muted)]">{count} tarefa(s)</span>
         <button aria-label={`Editar ${form.name}`} className="p-1.5" onClick={() => setEditing(true)}><Pencil size={14} /></button>
-        <button aria-label={`Excluir ${form.name}`} className="p-1.5 text-red-400 disabled:opacity-30" disabled={count > 0 || deleting} title={count ? `${count} tarefa(s), incluindo arquivadas. Exclusão bloqueada.` : "Excluir"} onClick={() => setConfirmDelete(true)}><Trash2 size={14} /></button>
-        {confirmDelete && <div className="w-full flex flex-wrap items-center gap-3 text-xs" role="alert">
-          <span>Excluir {form.name}?</span><button className={buttonClass} disabled={deleting} onClick={() => {
-            setDeleting(true); void onDelete().then((ok) => { setDeleting(false); if (ok) setConfirmDelete(false); });
-          }}>Confirmar exclusão</button><button onClick={() => setConfirmDelete(false)}>Cancelar</button>
-        </div>}
+        <button aria-label={`Excluir ${form.name}`} className="p-1.5 text-red-400" title={isKanban ? "Excluir Kanban" : "Excluir coluna"} onClick={onDelete}><Trash2 size={14} /></button>
       </div>}
   </div>;
 }
@@ -101,6 +96,8 @@ export function Configuracoes() {
   const activeKanban = selectActiveKanban(store);
   const navigate = useNavigate();
   const [creating, setCreating] = useState<"kanban" | "column" | null>(null);
+  const [deletingKanban, setDeletingKanban] = useState<Kanban | null>(null);
+  const [deletingColumn, setDeletingColumn] = useState<KanbanColumn | null>(null);
   const unavailableKinds = (exceptId?: string) => store.columns.filter((column) => column.id !== exceptId && column.kind !== "normal").map((column) => column.kind);
   const success = (title: string) => store.addToast({ type: "success", title, message: "Alterações salvas." });
   return <AppLayout title={`Configurações${activeKanban ? ` / ${activeKanban.name}` : ""}`}>
@@ -114,7 +111,7 @@ export function Configuracoes() {
           navigate(`/configuracoes/${created.slug}`); success("Kanban criado"); return true;
         }} />}
         <SortableList ids={store.kanbans.map((kanban) => kanban.id)} onReorder={store.reorderKanbans}>
-          {store.kanbans.map((kanban) => <EntityRow key={kanban.id} id={kanban.id} isKanban active={kanban.id === store.activeKanbanId} count={kanban.taskCount} form={{ ...kanban, kind: "normal" }} onSelect={() => navigate(`/configuracoes/${kanban.slug}`)} onDelete={() => store.deleteKanban(kanban.id)} onSave={async (form) => {
+          {store.kanbans.map((kanban) => <EntityRow key={kanban.id} id={kanban.id} isKanban active={kanban.id === store.activeKanbanId} count={kanban.taskCount} form={{ ...kanban, kind: "normal" }} onSelect={() => navigate(`/configuracoes/${kanban.slug}`)} onDelete={() => setDeletingKanban(kanban)} onSave={async (form) => {
             const ok = await store.updateKanban(kanban.id, { name: form.name, slug: form.slug, color: form.color });
             if (ok) { if (kanban.id === store.activeKanbanId) navigate(`/configuracoes/${form.slug}`, { replace: true }); success("Kanban atualizado"); }
             return ok;
@@ -132,13 +129,15 @@ export function Configuracoes() {
           if (ok) success("Coluna criada"); return ok;
         }} />}
         <SortableList ids={store.columns.map((column) => column.id)} onReorder={store.reorderColumns}>
-          {store.columns.map((column) => <EntityRow key={column.id} id={column.id} isKanban={false} count={store.tasks.filter((task) => task.columnId === column.id).length} form={{ ...column, slug: "" }} unavailableKinds={unavailableKinds(column.id)} onDelete={() => store.deleteColumn(column.id)} onSave={async (form) => {
+          {store.columns.map((column) => <EntityRow key={column.id} id={column.id} isKanban={false} count={store.tasks.filter((task) => task.columnId === column.id).length} form={{ ...column, slug: "" }} unavailableKinds={unavailableKinds(column.id)} onDelete={() => setDeletingColumn(column)} onSave={async (form) => {
             const ok = await store.updateColumn(column.id, { name: form.name, color: form.color, kind: form.kind });
             if (ok) success("Coluna atualizada"); return ok;
           }} />)}
         </SortableList>
         {!store.columns.length && <p className="text-sm text-[var(--c-muted)]">Adicione uma coluna para criar tarefas neste Kanban.</p>}
       </section>}
+      {deletingColumn && <DeleteColumnDialog column={deletingColumn} onClose={() => setDeletingColumn(null)} />}
+      {deletingKanban && <DeleteKanbanDialog kanban={deletingKanban} onClose={() => setDeletingKanban(null)} />}
     </div>
   </AppLayout>;
 }

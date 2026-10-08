@@ -10,6 +10,8 @@ const mock = vi.hoisted(() => {
 vi.mock("@/utils/supabase", () => {
   const supabase = {
     auth: { onAuthStateChange: vi.fn() },
+    rpc(name: string, filters: Record<string, unknown>) { const query = { table: `rpc:${name}`, filters, offset: 0, end: 0, operation: "rpc" }; mock.queries.push(query); return mock.response(query); },
+    functions: { invoke(name: string) { return mock.response({ table: `function:${name}`, filters: {}, offset: 0, end: 0, operation: "invoke" }); } },
     from(table: string) {
       const query: Query = { table, filters: {}, offset: 0, end: 499, operation: "select" };
       const builder = {
@@ -26,7 +28,7 @@ vi.mock("@/utils/supabase", () => {
       return channel;
     }, removeChannel: mock.removed,
   };
-  return { supabase, supabaseAdmin: {} };
+  return { supabase };
 });
 import { useStore } from "@/store/useStore";
 
@@ -117,5 +119,32 @@ describe("active Kanban store isolation", () => {
     expect(mock.queries).toEqual([]);
     useStore.getState().openTaskModal("create", undefined, column.id);
     expect(useStore.getState().taskModalDefaultColumnId).toBe(column.id);
+  });
+
+  it("requires the exact deleted task ID, preserves state on zero affected rows and scopes the RPC", async () => {
+    useStore.setState({ activeKanbanId: "a", tasks: [task], columns: [column], taskModalTaskId: task.id, taskModalOpen: true });
+    mock.response = async () => ({ data: null, error: null });
+    expect(await useStore.getState().deleteTask(task.id)).toBe(false);
+    expect(useStore.getState().tasks).toHaveLength(1); expect(useStore.getState().taskModalOpen).toBe(true);
+    expect(mock.queries[0].filters).toEqual({ p_task_id: task.id, p_kanban_id: "a" });
+    mock.response = async (query) => ({ data: query.operation === "rpc" ? task.id : [], error: null });
+    expect(await useStore.getState().deleteTask(task.id)).toBe(true);
+    expect(useStore.getState().tasks).toHaveLength(0); expect(useStore.getState().taskModalOpen).toBe(false);
+  });
+
+  it("blocks duplicate task deletion requests and rejects ordinary users before contacting the backend", async () => {
+    useStore.setState({ activeKanbanId: "a", tasks: [task], columns: [column] });
+    let finish!: (response: Response) => void;
+    mock.response = async () => new Promise((resolve) => { finish = resolve; });
+    const pending = useStore.getState().deleteTask(task.id);
+    expect(await useStore.getState().deleteTask(task.id)).toBe(false);
+    expect(mock.queries).toHaveLength(1);
+    finish({ data: task.id, error: null }); await pending;
+    useStore.setState({ currentUser: { ...user, role: "tecnico" }, tasks: [task] });
+    const count = mock.queries.length;
+    expect(await useStore.getState().deleteTask(task.id)).toBe(false);
+    expect((await useStore.getState().resetMemberPassword(user.id, "test-password")).success).toBe(false);
+    expect((await useStore.getState().transferAndDeleteKanban("a", "b", {}, "test-password")).success).toBe(false);
+    expect(mock.queries).toHaveLength(count);
   });
 });
