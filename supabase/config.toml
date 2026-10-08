@@ -1,0 +1,11 @@
+# All endpoints validate the JWT with Auth.getUser and read the current DB role.
+# Keep gateway JWT verification on user-only endpoints as defense in depth.
+[functions.create-member]
+verify_jwt = true
+[functions.reset-member-password]
+verify_jwt = true
+[functions.delete-kanban]
+verify_jwt = true
+# The scheduled worker accepts its independent server secret without a JWT.
+[functions.cleanup-task-storage]
+verify_jwt = false
