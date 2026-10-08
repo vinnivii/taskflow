@@ -1,0 +1,43 @@
+name: Member Auth integration
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'src/pages/Equipe.tsx'
+      - 'src/store/useStore.ts'
+      - 'tests/integration/members.ts'
+      - '.github/workflows/member-auth-integration.yml'
+permissions:
+  contents: read
+jobs:
+  member-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+        with:
+          version: 2.107.0
+      - name: Start isolated Supabase with project migrations
+        shell: bash
+        run: |
+          test_workspace="$RUNNER_TEMP/taskflow-member-auth"
+          mkdir -p "$test_workspace"
+          supabase init --workdir "$test_workspace"
+          mkdir -p "$test_workspace/supabase/migrations"
+          cp supabase/migrations/*.sql "$test_workspace/supabase/migrations/"
+          supabase start --workdir "$test_workspace" --exclude studio,edge-runtime,imgproxy,realtime,vector,analytics > "$RUNNER_TEMP/supabase-start.log" 2>&1
+          supabase status --workdir "$test_workspace" -o json > "$RUNNER_TEMP/supabase-local-status.json"
+      - name: Verify real Auth creation, confirmed email, login, roles, rollback and password reset
+        env:
+          SUPABASE_LOCAL_STATUS_FILE: ${{ runner.temp }}/supabase-local-status.json
+        run: node --experimental-transform-types tests/integration/members.ts
+      - name: Stop isolated Supabase
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/taskflow-member-auth" --no-backup
