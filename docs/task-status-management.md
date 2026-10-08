@@ -6,7 +6,8 @@ Supervisores geral e adjunto podem usar **Gerenciar status** ao lado de Status n
 
 ## Uso e regras
 
-- Cadastre nome, cor predefinida ou hexadecimal, função Normal/Concluída/Bloqueada e posição inicial. A chave é gerada a partir do nome e recebe um sufixo quando já existe naquele Kanban.
+- Cadastre nome, cor predefinida, hexadecimal ou RGB, função Normal/Concluída/Bloqueada e posição inicial. A chave é gerada a partir do nome e recebe um sufixo quando já existe naquele Kanban.
+- Na criação e edição de Kanbans, colunas e status, **Cor RGB** abre o seletor visual do navegador. Os campos **R**, **G** e **B** também permitem informar valores de 0 a 255. Paleta, seletor visual, canais RGB e hexadecimal permanecem sincronizados. Valores RGB fora do intervalo são limitados a 0–255 e decimais são arredondados; apagar um canal permite redigitá-lo, e sair do campo vazio restaura o último valor válido. Um hexadecimal inválido bloqueia salvar e editar os canais até escolher uma cor válida. A cor continua sendo armazenada como `#RRGGBB`.
 - Edite nome, cor e função mantendo ID, chave e vínculos das tarefas. O editor informa o impacto de mudanças funcionais em colunas com tarefas e bloqueia funções especiais já existentes. Colunas com tarefas arquivadas mantêm sua função de conclusão.
 - Arraste a alça para reorganizar. Também é possível focar a alça, pressionar Espaço, usar as setas e confirmar com Espaço. A ordem usa o RPC transacional existente `reorder_kanban_columns`.
 - Excluir abre o `DeleteColumnDialog` já existente. Ele confirma a remoção e permite transferir as tarefas para uma coluna compatível do mesmo Kanban ou excluir permanentemente tarefas e coluna, incluindo arquivadas, pelo RPC administrativo existente.
@@ -22,7 +23,7 @@ O cadastro insere a coluna no final e, quando necessário, chama a ordenação e
 | Arquivo | Responsabilidade |
 | --- | --- |
 | `src/components/kanban/ColumnForm.tsx` | Editor compartilhado, validação de função/cor, posição inicial e avisos de impacto. |
-| `src/components/kanban/ColorPicker.tsx` | Paleta e hexadecimal, reutilizados também no editor de Kanban. |
+| `src/components/kanban/ColorPicker.tsx` | Paleta, hexadecimal, seletor visual e canais RGB sincronizados, reutilizados também no editor de Kanban. |
 | `src/components/kanban/ColumnsManager.tsx` | Lista, contagens com arquivadas, cadastro/edição e reutilização de exclusão. |
 | `src/components/kanban/SortableList.tsx` | Ordenação compartilhada, mouse/toque/teclado e bloqueio de requisições duplicadas. |
 | `src/components/kanban/StatusManagerDialog.tsx` | Modal Radix, fechamento, bloqueio durante gravação e retorno de foco ao botão de origem. |
@@ -34,6 +35,7 @@ O cadastro insere a coluna no final e, quando necessário, chama a ordenação e
 | `tests/kanban.test.ts`, `tests/store.test.ts` | Chaves, permissões, metadados, falhas, troca de rota e criação confirmada com falha de ordenação. |
 | `tests/admin-database.test.ts` | PostgreSQL real em PGlite: RLS, funções únicas, arquivamento e alterações sem reescrever tarefas. |
 | `tests/e2e/statuses.spec.ts`, `tests/e2e/fixture.ts` | Fluxos desktop/mobile, foco, exclusão/transfers, relatórios e protocolo de Realtime simulado. |
+| `tests/e2e/colors.spec.ts` | Criação/edição de Kanbans, colunas e status com RGB, persistência hexadecimal, sincronização, limites e layout mobile. |
 
 ## Banco e implantação
 
@@ -49,4 +51,4 @@ Os testes de banco executam SQL/RLS/FKs em PostgreSQL PGlite local. Os testes Pl
 
 O lint dos arquivos alterados deve passar. O lint global mantém os 11 erros e 1 aviso preexistentes em componentes UI, Clientes e Login, descritos em `admin-management.md`. O build mantém os avisos existentes de tamanho do bundle, Browserslist e classes Tailwind.
 
-Resultados desta entrega: **69 testes Vitest e 22 testes Playwright passaram**. Build, lint dos arquivos alterados, `git diff --check` e scanner do bundle sem credenciais administrativas passaram. O lint global falhou somente nos problemas preexistentes descritos acima. A captura mobile do gerenciador foi inspecionada em 390 × 844.
+Resultados desta entrega: **69 testes Vitest e 25 testes Playwright passaram**. Build, lint dos arquivos alterados, `git diff --check` e scanner do bundle sem credenciais administrativas passaram. O lint global falhou somente nos problemas preexistentes descritos acima. As capturas mobile do gerenciador e dos campos RGB foram inspecionadas em 390 × 844.

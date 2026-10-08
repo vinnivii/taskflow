@@ -96,6 +96,7 @@ export async function mockSupabase(page: Page, role = "supervisor_geral", realti
       let json: unknown = null;
       if (name === "create_kanban") {
         const created = kanban(payload.p_name, payload.p_slug, tables.kanbans.length);
+        created.color = payload.p_color;
         tables.kanbans.push(created); tables.kanban_columns.push(makeColumn(created, "Aberto", "aberto", "normal", 0)); json = created;
       } else if (name === "reorder_kanbans" || name === "reorder_kanban_columns") {
         const table = name === "reorder_kanbans" ? "kanbans" : "kanban_columns";
