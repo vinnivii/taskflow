@@ -14,7 +14,8 @@ Os arquivos da implementação são:
 - Rotas e seleção: `src/App.tsx`, `src/components/KanbanScope.tsx`, `KanbanSelector.tsx`, `AppLayout.tsx`, `Sidebar.tsx`, `TopHeader.tsx`.
 - Quadros e tarefas: `src/pages/Quadro.tsx`, `Tarefas.tsx`, `src/components/KanbanColumn.tsx`, `KanbanCard.tsx`, `TaskModal.tsx`, `FilterBar.tsx`.
 - Administração e indicadores: `src/pages/Configuracoes.tsx`, `Relatorios.tsx`, `Equipe.tsx`.
-- Validação: `vitest.config.ts`, `playwright.config.ts`, `tests/database.test.ts`, `tests/kanban.test.ts`, `tests/store.test.ts`, `tests/e2e/fixture.ts`, `tests/e2e/kanbans.spec.ts`, scripts/dependências em `package.json` e `package-lock.json`, artefatos ignorados em `.gitignore`.
+- Validação: `vitest.config.ts`, `playwright.config.ts`, `tests/database.test.ts`, `tests/kanban.test.ts`, `tests/store.test.ts`, `tests/build-version.test.ts`, `tests/e2e/fixture.ts`, `tests/e2e/kanbans.spec.ts`, scripts/dependências em `package.json` e `package-lock.json`, artefatos ignorados em `.gitignore`.
+- Build em hospedagem: `scripts/syncVersion.mjs` usa `VITE_APP_VERSION` do ambiente, depois a versão do `.env` local e finalmente `package.json`. Um checkout sem `.env` pode compilar; versões explicitamente inválidas continuam sendo rejeitadas.
 
 ## Seleção, consultas e comportamento
 
@@ -61,7 +62,7 @@ Supervisor geral pode mover em qualquer direção. Adjunto não pode mover para 
 
 Para uma instalação local nova, com Docker e Supabase CLI disponíveis: `npx supabase start` e `npx supabase db reset`. O reset é apenas para banco local descartável, pois recria seus dados.
 
-**A migration não foi aplicada ao Supabase remoto por esta implementação.** Os testes usam PostgreSQL local descartável, sem credenciais reais. Um rollback após novos dados requer um plano de dados/backup: não renomeie as tabelas de volta descartando os novos Kanbans.
+**O responsável confirmou a aplicação da migration no Supabase e a validação funcional antes do merge.** A aplicação remota não foi executada pelo agente; os testes automatizados usam PostgreSQL local descartável, sem credenciais reais. Um rollback após novos dados requer um plano de dados/backup: não renomeie as tabelas de volta descartando os novos Kanbans.
 
 ## Validação reproduzível
 
@@ -92,7 +93,7 @@ Os testes de navegador executam a aplicação e o SDK reais contra respostas HTT
 
 Além disso: slugs com acentos e duplicados, RPC de ordenação inválida, recuperação de colunas removidas, impedimento de exclusão com arquivos, mais de 1.000 tarefas, requisições fora de ordem, busca `#ID`/RFC, paginação após troca e tema claro.
 
-Resultado: **31 testes Vitest e 6 testes Playwright passaram**, incluindo arraste real por toque e exclusão/recriação do último Kanban vazio. O build passa. O lint completo tinha **23 erros e 10 avisos** na base; permanecem **11 erros e 1 aviso**, todos em arquivos não alterados (`src/components/ui/*`, `Clientes.tsx`, `Login.tsx`). A comparação dos diagnósticos não encontrou nenhum novo erro/aviso. Os arquivos alterados e os testes passam no lint. Permanecem avisos de tamanho de bundle/Tailwind já presentes na base.
+Resultado: **36 testes Vitest e 6 testes Playwright passaram**, incluindo arraste real por toque e exclusão/recriação do último Kanban vazio. O build passa. O lint completo tinha **23 erros e 10 avisos** na base; permanecem **11 erros e 1 aviso**, todos em arquivos não alterados (`src/components/ui/*`, `Clientes.tsx`, `Login.tsx`). A comparação dos diagnósticos não encontrou nenhum novo erro/aviso. Os arquivos alterados e os testes passam no lint. Permanecem avisos de tamanho de bundle/Tailwind já presentes na base.
 
 ## Riscos e acompanhamento
 
