@@ -13,6 +13,7 @@ import {
 } from "@/types";
 import type { User, UserRole, Department } from "@/types";
 import { isTaskCompleted } from "@/lib/kanban";
+import { ResetMemberPasswordDialog } from "@/components/admin/ResetMemberPasswordDialog";
 
 export function Equipe() {
   const columns = useStore((state) => state.columns);
@@ -28,6 +29,7 @@ export function Equipe() {
   const addToast = useStore((s) => s.addToast);
 
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
+  const [passwordMember, setPasswordMember] = useState<User | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
   // Create member form
@@ -46,6 +48,7 @@ export function Equipe() {
   };
 
   const handleCreateMember = async () => {
+    if (formLoading) return;
     setFormError("");
     if (!formName.trim())           { setFormError("Informe o nome.");              return; }
     if (!formEmail.trim())          { setFormError("Informe o e-mail.");            return; }
@@ -294,6 +297,7 @@ export function Equipe() {
               </span>
             </div>
 
+            {perms.canManageUsers && <button className="mb-4 w-full h-9 rounded-md bg-[#F2C94C] text-black text-sm font-semibold" onClick={() => { setPasswordMember(selectedMember); setSelectedMember(null); }}>Alterar senha</button>}
             {/* Member tasks */}
             <div>
               <h3 className="text-[15px] font-semibold text-[var(--c-text)] mb-3">
@@ -475,6 +479,7 @@ export function Equipe() {
           </div>
         </div>
       )}
+      {passwordMember && <ResetMemberPasswordDialog member={passwordMember} onClose={() => setPasswordMember(null)} />}
     </AppLayout>
   );
 }

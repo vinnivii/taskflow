@@ -14,7 +14,8 @@ import type {
   Department,
   Customer,
 } from "@/types";
-import { supabase, supabaseAdmin } from "@/utils/supabase";
+import { supabase } from "@/utils/supabase";
+import { invokeAdmin } from "@/lib/admin-api";
 import { generateAvatar } from "@/utils/avatar";
 import { getKanbanPermissions, isTaskCompleted, sortColumns } from "@/lib/kanban";
 
@@ -211,6 +212,7 @@ interface AppState {
     role: User["role"];
     department: User["department"];
   }) => Promise<{ success: boolean; error?: string }>;
+  resetMemberPassword: (memberId: string, password: string) => Promise<{ success: boolean; error?: string }>;
 
   // The active ID is a cache of the route, not a second navigation source.
   kanbans: Kanban[];
@@ -607,43 +609,17 @@ export const useStore = create<AppState>((set, get) => {
 
     set({ users });
   },
-  createMember: async ({ name, email, password, role, department }) => {
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name },
-    });
-
-    if (authError || !authData.user) {
-      return { success: false, error: authError?.message ?? "Erro ao criar usuário" };
-    }
-
-    const { error: profileError } = await supabaseAdmin.from("users").upsert({
-      id: authData.user.id,
-      name,
-      email,
-      avatar: "",
-      role,
-      department,
-    });
-
-    if (profileError) {
-      return { success: false, error: profileError.message };
-    }
-
-    const newUser: User = {
-      id: authData.user.id,
-      name,
-      email,
-      avatar: generateAvatar(name),
-      role,
-      department,
-      createdAt: new Date(),
-    };
-
-    set((state) => ({ users: [...state.users, newUser].sort((a, b) => a.name.localeCompare(b.name)) }));
+  createMember: async (member) => {
+    if (get().currentUser?.role !== "supervisor_geral") return { success: false, error: "Sem permiss\u00e3o." };
+    const { data, error } = await invokeAdmin<{ success: boolean }>("create-member", member);
+    if (error || !data?.success) return { success: false, error: error ?? "Cadastro n\u00e3o confirmado." };
+    await get().fetchUsers();
     return { success: true };
+  },
+  resetMemberPassword: async (memberId, password) => {
+    if (get().currentUser?.role !== "supervisor_geral") return { success: false, error: "Sem permiss\u00e3o." };
+    const { data, error } = await invokeAdmin<{ success: boolean }>("reset-member-password", { memberId, password });
+    return error || !data?.success ? { success: false, error: error ?? "Altera\u00e7\u00e3o n\u00e3o confirmada." } : { success: true };
   },
 
   // Tasks
