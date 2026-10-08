@@ -6,7 +6,7 @@ on:
       - 'supabase/migrations/**'
       - 'src/pages/Equipe.tsx'
       - 'src/store/useStore.ts'
-      - 'tests/integration/members.ts'
+      - 'tests/integration/**'
       - '.github/workflows/member-auth-integration.yml'
 permissions:
   contents: read
@@ -33,6 +33,9 @@ jobs:
           mkdir -p "$test_workspace/supabase/migrations"
           cp supabase/migrations/*.sql "$test_workspace/supabase/migrations/"
           supabase start --workdir "$test_workspace" --exclude studio,edge-runtime,imgproxy,realtime,vector,analytics > "$RUNNER_TEMP/supabase-start.log" 2>&1
+          database_container="$(docker ps --filter 'name=supabase_db_' --format '{{.ID}}')"
+          test -n "$database_container"
+          docker exec -i "$database_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/integration/bootstrap.sql
           supabase status --workdir "$test_workspace" -o json > "$RUNNER_TEMP/supabase-local-status.json"
       - name: Verify real Auth creation, confirmed email, login, roles, rollback and password reset
         env:

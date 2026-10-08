@@ -50,10 +50,14 @@ try {
     assert.equal(auth.error, null); assert.ok(auth.data.user!.email_confirmed_at);
     const profile = await admin.from("users").select("id,role,department").eq("id", memberId).single();
     assert.equal(profile.error, null); assert.equal(profile.data!.id, auth.data.user!.id);
-    const signedIn = await login(email); assert.equal(signedIn.error, null); assert.equal(signedIn.data.user!.id, memberId);
+    const memberClient = createClient(url, anonKey, options);
+    const signedIn = await memberClient.auth.signInWithPassword({ email, password: initialPassword });
+    assert.equal(signedIn.error, null); assert.equal(signedIn.data.user!.id, memberId);
+    const accessibleProfile = await memberClient.from("users").select("id").eq("id", memberId).single();
+    assert.equal(accessibleProfile.error, null); assert.equal(accessibleProfile.data!.id, memberId);
     const audit = await admin.from("admin_audit").select("id").eq("action", "create_member").contains("details", { member_id: memberId });
     assert.equal(audit.error, null); assert.equal(audit.data!.length, 1);
-    checks += 5;
+    checks += 6;
   }
   const duplicate = { name: "Duplicate", email: members[0].email, password: initialPassword, role: "tecnico" };
   assert.equal((await handler(request(supervisor.token, duplicate))).status, 409);

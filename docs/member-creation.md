@@ -32,7 +32,7 @@ Referências oficiais: [createUser](https://supabase.com/docs/reference/javascri
 | `src/store/useStore.ts` | Cadastro sem departamento obrigatório e atualização a partir do perfil confirmado. |
 | `tests/admin-functions.test.ts`, `tests/store.test.ts` | Contratos HTTP do SDK, seis cargos, falhas, compensação, duplicidade e atualização da lista. |
 | `tests/e2e/members.spec.ts`, `tests/e2e/fixture.ts` | Interface desktop/mobile, dados enviados, mensagens e submissões simultâneas. |
-| `tests/integration/members.ts` | Verificação com Auth, PostgREST e Postgres reais em Supabase local isolado. |
+| `tests/integration/members.ts`, `tests/integration/bootstrap.sql` | Verificação com Auth, PostgREST e Postgres reais em Supabase local isolado, com os grants existentes em produção. |
 | `.github/workflows/member-auth-integration.yml` | CI sem credenciais de produção: aplica migrations existentes e executa os testes reais de Auth. |
 
 ## Verificação e implantação
@@ -41,7 +41,7 @@ Execute `npm test`, `npm run test:e2e`, `npm run build`, o lint dos arquivos alt
 
 O workflow de integração usa Supabase local em um runner Linux, com todas as migrations existentes, contas de teste, SMTP local e nenhuma chave de produção. O script recusa URLs fora de localhost. Verifica os seis cargos, existência no Auth e no perfil, confirmação de e-mail, login imediato, contas antigas do ambiente de teste, duplicidade inclusive de conta sem perfil, dados inválidos, permissões, redefinição e compensação por falha real de constraint. Ao terminar, remove apenas suas próprias contas de teste. A máquina de desenvolvimento não dispõe de Docker; a integração real é executada pelo CI. Os testes de interface usam HTTP simulado; os testes de banco Vitest usam PostgreSQL PGlite.
 
-Não há migration nova. Para aplicar a correção em produção, após aprovação do PR, publique o frontend e faça redeploy de **`create-member` e `reset-member-password`**, pois ambas usam o handler compartilhado alterado. Preserve `verify_jwt = true` e a Service Role exclusivamente no servidor. Não é necessário redeploy das funções de Kanban/limpeza para esta correção.
+Não há migration nova. Para aplicar a correção em produção, após aprovação do PR, faça primeiro redeploy de **`create-member` e `reset-member-password`** e depois publique o frontend, pois ambas usam o handler compartilhado alterado. O servidor atualizado aceita o departamento enviado pelo frontend anterior; o frontend novo depende do departamento automático do servidor atualizado. Preserve `verify_jwt = true` e a Service Role exclusivamente no servidor. Não é necessário redeploy das funções de Kanban/limpeza para esta correção.
 
 ```powershell
 npx supabase functions deploy create-member --project-ref <projeto-aprovado>
