@@ -52,6 +52,10 @@ O worker reivindica até 20 jobs com lease de cinco minutos e remove arquivos em
 
 **Agende `cleanup-task-storage` a cada cinco minutos** com POST e header `x-cleanup-secret`, fornecendo `TASK_STORAGE_CLEANUP_SECRET` por um gerenciador de segredos. Pode usar Supabase Cron + pg_net + Vault ou um scheduler externo que mantenha o segredo no servidor. Use a URL `https://<project-ref>.supabase.co/functions/v1/cleanup-task-storage`; não coloque o valor em código SQL versionado ou em um scheduler público. O endpoint também permite uma chamada autenticada de supervisor para tentar antecipar jobs já elegíveis. A chamada imediata após uma exclusão não substitui o agendamento, devido ao atraso inicial de um minuto.
 
+O repositório inclui `.github/workflows/cleanup-task-storage.yml`, com execução manual e agendamento a cada cinco minutos. Configure a variável de Actions `TASK_STORAGE_CLEANUP_URL` com a URL do endpoint e o segredo de Actions `TASK_STORAGE_CLEANUP_SECRET` com o mesmo valor privado configurado no Supabase. O workflow não precisa de checkout nem de permissões do token GitHub. Ative-o na branch padrão e execute-o manualmente para verificar a implantação.
+
+O agendamento de Actions pode sofrer atrasos. Em repositórios públicos, o GitHub desativa workflows agendados após 60 dias sem atividade; monitore suas execuções e reative o workflow quando necessário, ou migre o agendamento para Supabase Cron. Referência: [agendamentos do GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
 Para verificar pendências no SQL Editor administrativo:
 
 ```sql
