@@ -5,7 +5,7 @@ export type AdminDependencies = { client: SupabaseClient; secret: (name: string)
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-cleanup-secret", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const roles: Record<string, string> = { supervisor_geral: "suporte", supervisor_adjunto: "suporte", tecnico: "suporte", estagiario: "suporte", comercial: "comercial", financeiro: "financeiro" };
-class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
+class HttpError extends Error { constructor(public status: number, message: string, public code = "operation_failed") { super(message); } }
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 function textField(data: Record<string, unknown>, key: string, max = 256) {
   const value = data[key];
@@ -21,6 +21,33 @@ function passwordField(data: Record<string, unknown>) {
   const value = textField(data, "password", 1024);
   if (value.length < 6) throw new HttpError(400, "Senha mínima de 6 caracteres.");
   return value;
+}
+// Log only structured codes: Auth/SQL messages can contain addresses or credentials.
+function reportFailure(stage: string, error: unknown) {
+  const details = error as { code?: unknown; status?: unknown } | null;
+  const code = typeof details?.code === "string" && /^[a-z0-9_]{1,64}$/i.test(details.code) ? details.code : "unknown";
+  console.error(JSON.stringify({ event: "member_admin_failure", stage, code, status: typeof details?.status === "number" ? details.status : undefined }));
+}
+function authFailure(error: unknown) {
+  const { code, status } = (error ?? {}) as { code?: string; status?: number };
+  if (code === "email_exists" || code === "user_already_exists") return new HttpError(409, "E-mail já cadastrado. Se o membro não aparecer na equipe, solicite a revisão do cadastro a um administrador.", "email_exists");
+  if (code === "weak_password") return new HttpError(400, "Senha não atende aos requisitos configurados no serviço de autenticação.", "weak_password");
+  if (code === "email_address_invalid" || code === "email_address_not_authorized") return new HttpError(400, "E-mail em formato inválido ou não permitido pelo serviço de autenticação.", "invalid_email");
+  if (code === "over_request_rate_limit" || status === 429) return new HttpError(429, "Muitas solicitações. Aguarde um momento antes de tentar novamente.", "rate_limited");
+  return new HttpError(503, "Serviço de autenticação indisponível. Tente novamente mais tarde ou contate um administrador.", "auth_unavailable");
+}
+async function compensateMember(client: SupabaseClient, memberId: string, actorId?: string) {
+  // Called only with the UUID returned by this request's successful createUser.
+  try {
+    const { error } = await client.auth.admin.deleteUser(memberId);
+    if (!error) return;
+    reportFailure("creation_compensation", error);
+  } catch (error) { reportFailure("creation_compensation", error); }
+  try {
+    const { error } = await client.from("admin_audit").insert({ actor_id: actorId, action: "member_creation_cleanup_failed", details: { member_id: memberId } });
+    if (error) reportFailure("compensation_audit", error);
+  } catch (error) { reportFailure("compensation_audit", error); }
+  throw new HttpError(500, "Cadastro incompleto. Solicite a revisão a um administrador antes de repetir a operação.", "cleanup_failed");
 }
 async function boundedBody(request: Request) {
   const reader = request.body?.getReader();
@@ -75,20 +102,30 @@ export function createAdminHandler(endpoint: AdminEndpoint, dependencies: AdminD
       if (!data || typeof data !== "object" || Array.isArray(data)) throw new HttpError(400, "Dados inválidos.");
       if (endpoint === "create-member") {
         const name = textField(data, "name").trim();
-        const email = textField(data, "email").trim();
+        const email = textField(data, "email").trim().toLowerCase();
         const password = passwordField(data);
         const role = textField(data, "role");
-        if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !Object.hasOwn(roles, role) || data.department !== roles[role]) throw new HttpError(400, "Nome, e-mail, cargo ou departamento inválido.");
+        if (!name) throw new HttpError(400, "Informe o nome completo.", "invalid_name");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "E-mail em formato inválido.", "invalid_email");
+        if (!Object.hasOwn(roles, role) || (data.department !== undefined && data.department !== roles[role])) throw new HttpError(400, "Cargo ou departamento inválido.", "invalid_role");
         const { data: created, error } = await client.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
-        if (error || !created.user) throw new HttpError(400, "Não foi possível criar o membro. Verifique o e-mail e os requisitos de senha do Auth.");
-        const { error: profileError } = await client.from("users").insert({ id: created.user.id, name, email, avatar: "", role, department: roles[role] });
-        if (profileError) {
-          const { error: cleanupError } = await client.auth.admin.deleteUser(created.user.id);
-          if (cleanupError) await client.from("admin_audit").insert({ actor_id: actorId, action: "member_creation_cleanup_failed", details: { member_id: created.user.id } });
-          throw new HttpError(500, "Não foi possível concluir o cadastro do membro.");
+        if (error || !created.user) { reportFailure("auth_creation", error); throw authFailure(error); }
+        const memberId = created.user.id;
+        let stage = "profile_creation";
+        try {
+          const { data: member, error: profileError } = await client.from("users")
+            .insert({ id: memberId, name, email, avatar: "", role, department: roles[role] })
+            .select("id,name,email,avatar,role,department,created_at").single();
+          if (profileError || member?.id !== memberId) throw profileError ?? new Error("Profile not confirmed");
+          stage = "creation_audit";
+          const { error: auditError } = await client.from("admin_audit").insert({ actor_id: actorId, action: "create_member", details: { member_id: memberId } });
+          if (auditError) throw auditError;
+          return reply(200, { success: true, memberId, member });
+        } catch (failure) {
+          reportFailure(stage, failure);
+          await compensateMember(client, memberId, actorId);
+          throw new HttpError(500, stage === "profile_creation" ? "Falha ao salvar o perfil do membro. O cadastro foi cancelado; tente novamente." : "Falha ao registrar o cadastro do membro. O cadastro foi cancelado; tente novamente.", stage === "profile_creation" ? "profile_failed" : "audit_failed");
         }
-        await client.from("admin_audit").insert({ actor_id: actorId, action: "create_member", details: { member_id: created.user.id } });
-        return reply(200, { success: true, memberId: created.user.id });
       }
       if (endpoint === "reset-member-password") {
         const memberId = idField(data, "memberId");
@@ -96,7 +133,7 @@ export function createAdminHandler(endpoint: AdminEndpoint, dependencies: AdminD
         const { data: member, error: memberError } = await client.from("users").select("id").eq("id", memberId).single();
         if (memberError || !member) throw new HttpError(404, "Membro não encontrado.");
         const { error } = await client.auth.admin.updateUserById(memberId, { password });
-        if (error) throw new HttpError(400, "Não foi possível alterar a senha. Verifique os requisitos de senha do Auth.");
+        if (error) { reportFailure("password_reset", error); throw authFailure(error); }
         await client.from("admin_audit").insert({ actor_id: actorId, action: "reset_member_password", details: { member_id: memberId } });
         return reply(200, { success: true });
       }
@@ -114,7 +151,7 @@ export function createAdminHandler(endpoint: AdminEndpoint, dependencies: AdminD
       if (error) throw new HttpError(409, "Transferência não concluída. Atualize os dados e confira o destino e as colunas de conclusão para tarefas arquivadas.");
       return reply(200, { success: true, ...result });
     } catch (error) {
-      return error instanceof HttpError ? reply(error.status, { error: error.message }) : reply(500, { error: "Não foi possível concluir a operação." });
+      return error instanceof HttpError ? reply(error.status, { error: error.message, code: error.code }) : reply(500, { error: "Não foi possível concluir a operação." });
     }
   };
 }

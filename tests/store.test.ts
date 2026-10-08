@@ -11,7 +11,7 @@ vi.mock("@/utils/supabase", () => {
   const supabase = {
     auth: { onAuthStateChange: vi.fn() },
     rpc(name: string, filters: Record<string, unknown>) { const query = { table: `rpc:${name}`, filters, offset: 0, end: 0, operation: "rpc" }; mock.queries.push(query); return mock.response(query); },
-    functions: { invoke(name: string) { return mock.response({ table: `function:${name}`, filters: {}, offset: 0, end: 0, operation: "invoke" }); } },
+    functions: { invoke(name: string, options?: { body: object }) { const query = { table: `function:${name}`, filters: {}, offset: 0, end: 0, operation: "invoke", values: options?.body }; mock.queries.push(query); return mock.response(query); } },
     from(table: string) {
       const query: Query = { table, filters: {}, offset: 0, end: 499, operation: "select" };
       const builder = {
@@ -45,6 +45,23 @@ beforeEach(() => {
   mock.queries = []; mock.handlers = []; mock.removed.mockClear();
   mock.response = async (query) => ({ data: query.table === "tasks" ? [taskRow(String(query.filters.kanban_id))] : query.table === "kanban_columns" ? [columnRow(String(query.filters.kanban_id))] : [], error: null });
   useStore.setState({ currentUser: user, isAuthenticated: true, kanbans, activeKanbanId: null, tasks: [], columns: [], scopeLoading: false, scopeError: null, taskModalOpen: false });
+});
+
+describe("confirmed member creation", () => {
+  it.each(["empty", "error", "throw"])("keeps a committed member visible when team refresh returns %s", async (failure) => {
+    useStore.setState({ users: [user] });
+    const row = { id: "new-member", name: "New Member", email: "new@example.test", avatar: "", role: "financeiro", department: "financeiro", created_at: new Date().toISOString() };
+    mock.response = async (query) => {
+      if (query.table === "function:create-member") return { data: { success: true, member: row }, error: null };
+      if (failure === "throw") throw new Error("network unavailable");
+      return { data: [], error: failure === "error" ? { message: "unavailable" } : null };
+    };
+    const result = await useStore.getState().createMember({ name: row.name, email: " NEW@EXAMPLE.TEST ", password: "test-password", role: "financeiro" });
+    expect(result.success).toBe(true);
+    expect(useStore.getState().users.find((member) => member.id === row.id)).toMatchObject({ name: row.name, email: row.email, role: row.role, department: row.department });
+    expect(mock.queries.find((query) => query.table === "function:create-member")?.values).toMatchObject({ email: row.email });
+    expect(mock.queries.filter((query) => query.table === "function:create-member")).toHaveLength(1);
+  });
 });
 
 describe("status management store", () => {

@@ -77,9 +77,9 @@ export async function mockSupabase(page: Page, role = "supervisor_geral", realti
       if (name === "cleanup-task-storage") { await route.fulfill({ json: { completed: 0, pending: 0 } }); return; }
       if (!["supervisor_geral", "supervisor_adjunto"].includes(role) || (name !== "delete-kanban" && role !== "supervisor_geral")) { await route.fulfill({ status: 403, json: { error: "Sem permissão." } }); return; }
       if (name === "create-member") {
-        const member = { id: randomUUID(), created_at: timestamp(), avatar: "", name: payload.name, email: payload.email, role: payload.role, department: payload.department };
+        const member = { id: randomUUID(), created_at: timestamp(), avatar: "", name: payload.name, email: payload.email, role: payload.role, department: ["comercial", "financeiro"].includes(payload.role) ? payload.role : "suporte" };
         tables.users.push(member); memberPasswords.set(member.id, payload.password);
-        await route.fulfill({ json: { success: true, memberId: member.id } }); return;
+        await route.fulfill({ json: { success: true, memberId: member.id, member } }); return;
       }
       if (name === "reset-member-password") { memberPasswords.set(payload.memberId, payload.password); await route.fulfill({ json: { success: true } }); return; }
       if (name === "delete-kanban") {

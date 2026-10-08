@@ -210,7 +210,7 @@ interface AppState {
     email: string;
     password: string;
     role: User["role"];
-    department: User["department"];
+    department?: User["department"];
   }) => Promise<{ success: boolean; error?: string }>;
   resetMemberPassword: (memberId: string, password: string) => Promise<{ success: boolean; error?: string }>;
 
@@ -619,9 +619,15 @@ export const useStore = create<AppState>((set, get) => {
   },
   createMember: async (member) => {
     if (get().currentUser?.role !== "supervisor_geral") return { success: false, error: "Sem permiss\u00e3o." };
-    const { data, error } = await invokeAdmin<{ success: boolean }>("create-member", member);
+    const { data, error } = await invokeAdmin<{ success: boolean; member?: { id: string; name: string; email: string; avatar: string; role: User["role"]; department: User["department"]; created_at: string } }>("create-member", { ...member, email: member.email.trim().toLowerCase() });
     if (error || !data?.success) return { success: false, error: error ?? "Cadastro n\u00e3o confirmado." };
-    await get().fetchUsers();
+    // A refresh failure must never turn a committed creation into a retry.
+    await get().fetchUsers().catch(() => undefined);
+    if (data.member) {
+      const row = data.member;
+      const created: User = { id: row.id, name: row.name, email: row.email, avatar: row.avatar || generateAvatar(row.name), role: row.role, department: row.department, createdAt: new Date(row.created_at) };
+      set((state) => ({ users: [...state.users.filter((entry) => entry.id !== created.id), created] }));
+    }
     return { success: true };
   },
   resetMemberPassword: async (memberId, password) => {
