@@ -175,6 +175,43 @@ describe("administrative database transactions and authorization", () => {
     expect((await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0].column_id).toBe(parent.columns[0]);
   });
 
+  it("renames and recolors status metadata without rewriting task identity, archive state or timestamps", async () => {
+    const parent = await board("status-metadata"); await actor(null, "service_role"); const id = await task(parent, 1, true);
+    const before = (await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0];
+    const column = (await db.query("SELECT id,key FROM kanban_columns WHERE id=$1", [parent.columns[1]])).rows[0];
+    for (const index of [0, 1]) {
+      await actor(index);
+      const updated = (await db.query("UPDATE kanban_columns SET name='Entregue',color='#8844CC' WHERE id=$1 RETURNING id,key,kind", [parent.columns[1]])).rows[0];
+      expect(updated).toEqual({ ...column, kind: "completed" });
+      expect((await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0]).toEqual(before);
+      await expect(db.query("UPDATE kanban_columns SET kind='normal' WHERE id=$1", [parent.columns[1]])).rejects.toMatchObject({ code: "23514" });
+    }
+    for (const index of [2, 3, 4, 5]) {
+      await actor(index);
+      expect((await db.query("UPDATE kanban_columns SET name='Denied' WHERE id=$1 RETURNING id", [parent.columns[1]])).rows).toEqual([]);
+    }
+  });
+
+  it("enforces status key and functional-kind uniqueness within each Kanban", async () => {
+    const first = await board("status-first"); const second = await board("status-second"); await actor(0);
+    await db.query("INSERT INTO kanban_columns(kanban_id,key,name,kind) VALUES($1,'custom','Custom','normal'),($2,'custom','Custom','normal')", [first.id, second.id]);
+    await expect(db.query("INSERT INTO kanban_columns(kanban_id,key,name) VALUES($1,'custom','Duplicate')", [first.id])).rejects.toMatchObject({ code: "23505" });
+    await expect(db.query("UPDATE kanban_columns SET kind='completed' WHERE id=$1", [first.columns[0]])).rejects.toMatchObject({ code: "23505" });
+    await expect(db.query("UPDATE kanban_columns SET kind='blocked' WHERE id=$1", [first.columns[0]])).rejects.toMatchObject({ code: "23505" });
+    expect((await db.query("SELECT key FROM kanban_columns WHERE kanban_id=$1 AND key='custom'", [second.id])).rows).toHaveLength(1);
+  });
+
+  it("allows functional changes for unarchived tasks without rewriting their fields", async () => {
+    const parent = await board("status-function"); await actor(null, "service_role"); const id = await task(parent, 1);
+    const before = (await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0];
+    await actor(1);
+    await db.query("UPDATE kanban_columns SET kind='normal' WHERE id=$1", [parent.columns[1]]);
+    expect((await db.query("SELECT kind FROM kanban_columns WHERE id=$1", [parent.columns[1]])).rows[0]).toEqual({ kind: "normal" });
+    expect((await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0]).toEqual(before);
+    await db.query("UPDATE kanban_columns SET kind='completed' WHERE id=$1", [parent.columns[1]]);
+    expect((await db.query("SELECT * FROM tasks WHERE id=$1", [id])).rows[0]).toEqual(before);
+  });
+
   it("rejects orphan image uploads and allows an existing task's UUID prefix", async () => {
     const parent = await board("arquivos"); await actor(null, "service_role"); const id = await task(parent);
     await actor(null, "postgres");

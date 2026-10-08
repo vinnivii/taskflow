@@ -433,6 +433,7 @@ export function Quadro() {
           </DndContext>
           {perms.canCreateInColumn(activeColumn) && (
             <button
+              aria-label={`Nova tarefa em ${statusDisplayNames[activeColumn]}`}
               onClick={() => openTaskModal("create", null, activeColumn)}
               className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-[#F2C94C] text-[#0A0A0A] flex items-center justify-center shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:bg-[#F5D76A] transition-colors z-20"
             >

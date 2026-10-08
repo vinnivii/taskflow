@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getKanbanPermissions, isTaskBlocked, isTaskCompleted, slugify, sortColumns, uniqueKanbanSlug } from "@/lib/kanban";
+import { getKanbanPermissions, isTaskBlocked, isTaskCompleted, slugify, sortColumns, uniqueKanbanSlug, uniqueColumnKey } from "@/lib/kanban";
 import type { Kanban, KanbanColumn, User, UserRole } from "@/types";
 
 export const columns: KanbanColumn[] = [
@@ -12,6 +12,12 @@ export const columns: KanbanColumn[] = [
 const user = (role: UserRole): User => ({ id: "user", role, department: "suporte", name: "Test", email: "test@example.test", avatar: "", createdAt: new Date() });
 
 describe("generic workflows", () => {
+  it("reserves unique column keys within a Kanban and supports names without ASCII letters", () => {
+    const existing = [{ ...columns[0], key: "revisao" }, { ...columns[0], id: "second", key: "revisao-2" }, { ...columns[0], kanbanId: "b", key: "revisao-3" }];
+    expect(uniqueColumnKey("Revisão!", existing, "a")).toBe("revisao-3");
+    expect(uniqueColumnKey("Revisão!", existing, "b")).toBe("revisao");
+    expect(uniqueColumnKey("☀", [{ ...columns[0], key: "coluna" }], "a")).toBe("coluna-2");
+  });
   it("normalizes accented names and reserves unique safe slugs", () => {
     expect(slugify(" Desenvolvimento Interno! ")).toBe("desenvolvimento-interno");
     expect(slugify("Operação & Revisão")).toBe("operacao-revisao");
