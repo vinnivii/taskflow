@@ -14,6 +14,7 @@ import {
   ImageIcon,
   Pencil,
   Trash2,
+  Settings2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +23,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/utils/supabase";
 import { isTaskCompleted } from "@/lib/kanban";
 import { DeleteTaskDialog } from "@/components/admin/DeleteTaskDialog";
+import { StatusManagerDialog } from "@/components/kanban/StatusManagerDialog";
 
 const EMPTY_ACTIVITY: ActivityEntry[] = [];
 const EMPTY_COMMENTS: Comment[] = [];
@@ -75,6 +77,8 @@ export function TaskModal() {
 
 function TaskModalForm() {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [statusManager, setStatusManager] = useState<"manage" | "create" | null>(null);
+  const statusTrigger = useRef<HTMLButtonElement | null>(null);
   const {
     taskModalMode,
     taskModalTaskId,
@@ -109,6 +113,7 @@ function TaskModalForm() {
   }, [taskModalMode, taskModalTaskId, tasks]);
 
   const isEditing = taskModalMode !== "view";
+  const taskUnavailable = taskModalMode !== "create" && !existingTask;
 
   const [formTitle, setTitle] = useState(existingTask?.title ?? "");
   const title = isEditing ? formTitle : existingTask?.title ?? formTitle;
@@ -117,7 +122,11 @@ function TaskModalForm() {
   const [formPriority, setPriority] = useState<TaskPriority>(existingTask?.priority ?? "medium");
   const priority = isEditing ? formPriority : existingTask?.priority ?? formPriority;
   const [formColumnId, setColumnId] = useState<string>(existingTask?.columnId ?? taskModalDefaultColumnId ?? columns[0]?.id ?? "");
-  const columnId = isEditing ? formColumnId : existingTask?.columnId ?? formColumnId;
+  const selectionRemoved = !!formColumnId && !columns.some((column) => column.id === formColumnId);
+  // A column deletion can transfer the saved task. Keep the rest of the draft,
+  // adopt its confirmed destination, or require a new selection for a new task.
+  const draftColumnId = !selectionRemoved ? formColumnId : columns.some((column) => column.id === existingTask?.columnId) ? existingTask!.columnId : "";
+  const columnId = isEditing ? draftColumnId : existingTask?.columnId ?? draftColumnId;
   const [formDepartment, setDepartment] = useState<Department>(existingTask?.department ?? currentUser?.department ?? "suporte");
   const department = isEditing ? formDepartment : existingTask?.department ?? formDepartment;
   const [formAssigneeId, setAssigneeId] = useState<string | null>(existingTask ? existingTask.assigneeId : currentUser?.id ?? null);
@@ -158,6 +167,10 @@ function TaskModalForm() {
 
   const handleSave = async () => {
     if (savingRef.current) return;
+    if (taskUnavailable) {
+      addToast({ type: "error", title: "Tarefa excluída", message: "Esta tarefa foi removida. As alterações não podem ser salvas." });
+      return;
+    }
     if (!title.trim()) {
       addToast({ type: "error", title: "Erro", message: "Informe um titulo para a tarefa" });
       return;
@@ -167,6 +180,7 @@ function TaskModalForm() {
     const taskKanbanId = existingTask?.kanbanId ?? activeKanbanId;
     if (!currentUser || !target || target.kanbanId !== taskKanbanId ||
       (taskModalMode === "create" && !perms.canCreateInColumn(columnId)) ||
+      (existingTask?.archived && target.kind !== "completed") ||
       (existingTask && columnId !== existingTask.columnId && !perms.canMoveToColumn(existingTask.columnId, columnId))) {
       addToast({ type: "error", title: "Coluna inválida", message: "Selecione uma coluna permitida deste Kanban." });
       return;
@@ -340,6 +354,12 @@ function TaskModalForm() {
     view: { label: "Visualizar", bg: "rgba(138,138,138,0.12)", color: "#8A8A8A" },
   }[taskModalMode];
 
+  const manageStatusButton = perms.canManageKanbans && <button type="button" disabled={saving || archiving}
+    onClick={(event) => { statusTrigger.current = event.currentTarget; setStatusManager("manage"); }}
+    className="inline-flex items-center gap-1 text-[11px] text-[var(--c-muted)] hover:text-[var(--c-text)] disabled:opacity-40">
+    <Settings2 size={12} />Gerenciar status
+  </button>;
+
   return (
     <>
     <div className={`fixed inset-0 z-40 flex ${isMobile ? "items-end" : "items-center"} justify-center`} onClick={closeTaskModal}>
@@ -409,6 +429,7 @@ function TaskModalForm() {
         {confirmDelete && task && <DeleteTaskDialog task={task} onClose={() => setConfirmDelete(false)} />}
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 taskmodal-scroll">
+          {taskUnavailable && <p role="alert" className="mb-4 text-sm text-red-400">Esta tarefa foi excluída junto com o status. As alterações preenchidas não podem ser salvas.</p>}
           {/* Title */}
           <input
             type="text"
@@ -419,7 +440,7 @@ function TaskModalForm() {
             className="w-full bg-transparent text-[22px] font-semibold text-[var(--c-text)] tracking-[-0.6px] leading-snug outline-none placeholder:text-[var(--c-muted-3)] border-b border-transparent focus:border-[var(--c-border)] disabled:cursor-default pb-2 mb-5 transition-colors"
           />
 
-          {isEditing && canEdit ? (
+          {isEditing && (canEdit || taskUnavailable) ? (
             /* ── EDIT / CREATE MODE ── */
             <>
               {/* Description */}
@@ -458,13 +479,17 @@ function TaskModalForm() {
 
                 {/* Status */}
                 <div>
-                  <label className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase mb-2 block">Status</label>
+                  <div className="flex flex-wrap gap-2 items-center justify-between mb-2">
+                    <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted-2)] uppercase">Status</span>
+                    {manageStatusButton}
+                  </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {columns.map((b) => (
                       <button
                         key={b.id}
+                        aria-pressed={columnId === b.id}
                         onClick={() => setColumnId(b.id)}
-                        disabled={taskModalMode === "create" ? !perms.canCreateInColumn(b.id) : !!existingTask && b.id !== existingTask.columnId && !perms.canMoveToColumn(existingTask.columnId, b.id)}
+                        disabled={!!existingTask?.archived && b.kind !== "completed" || (taskModalMode === "create" ? !perms.canCreateInColumn(b.id) : !!existingTask && b.id !== existingTask.columnId && !perms.canMoveToColumn(existingTask.columnId, b.id))}
                         className="inline-flex items-center px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg text-[11px] md:text-[12px] font-semibold transition-all"
                         style={{
                           background: columnId === b.id ? `${b.color}26` : "transparent",
@@ -475,7 +500,11 @@ function TaskModalForm() {
                         {b.name}
                       </button>
                     ))}
+                    {perms.canManageKanbans && <button type="button" disabled={saving || archiving}
+                      onClick={(event) => { statusTrigger.current = event.currentTarget; setStatusManager("create"); }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-[var(--c-muted)] border border-dashed border-[var(--c-border)] hover:text-[var(--c-text)] disabled:opacity-40"><Plus size={12} />Novo status</button>}
                   </div>
+                  {selectionRemoved && <p role="status" className="mt-2 text-xs text-amber-400">{columnId ? "O status anterior foi removido. A tarefa agora está no destino da transferência; seus outros dados preenchidos foram preservados." : "O status selecionado foi removido. Escolha outro status antes de salvar; seus dados preenchidos foram preservados."}</p>}
                 </div>
 
               </div>
@@ -753,7 +782,7 @@ function TaskModalForm() {
                 </div>
                 {/* Status badge */}
                 <div>
-                  <span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase block mb-1">Status</span>
+                  <div className="flex flex-wrap gap-2 items-center justify-between mb-1"><span className="text-[10px] font-semibold tracking-[1px] text-[var(--c-muted)] uppercase">Status</span>{manageStatusButton}</div>
                   <span
                     className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold"
                     style={{ background: statusBg[columnId], color: statusColors[columnId] }}
@@ -934,7 +963,7 @@ function TaskModalForm() {
         </div>
 
         {/* Footer */}
-        {canEdit && (
+        {(canEdit || taskUnavailable) && (
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--c-border)]">
             <button
               onClick={closeTaskModal}
@@ -971,7 +1000,7 @@ function TaskModalForm() {
                 </button>
               )}
             <button
-              disabled={saving || archiving}
+              disabled={saving || archiving || taskUnavailable || !columns.some((column) => column.id === columnId)}
               onClick={() => void handleSave()}
               className="h-9 px-5 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-lg hover:bg-[#F5D76A] transition-colors shadow-[0_0_16px_rgba(242,201,76,0.25)] hover:shadow-[0_0_24px_rgba(242,201,76,0.4)] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -982,6 +1011,9 @@ function TaskModalForm() {
         )}
       </div>
     </div>
+
+    {statusManager && activeKanbanId && <StatusManagerDialog kanbanId={activeKanbanId} initialCreating={statusManager === "create"}
+      onClose={() => setStatusManager(null)} onReturnFocus={() => statusTrigger.current?.focus()} />}
 
     {/* Lightbox */}
     {lightboxUrl && (
