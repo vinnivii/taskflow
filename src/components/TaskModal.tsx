@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/utils/supabase";
+import { generateAvatar } from "@/utils/avatar";
 import { isTaskCompleted } from "@/lib/kanban";
 import { DeleteTaskDialog } from "@/components/admin/DeleteTaskDialog";
 
@@ -650,12 +651,13 @@ function TaskModalForm() {
                     <div className="space-y-3 mb-4 max-h-[200px] md:max-h-[320px] overflow-y-auto taskmodal-scroll pr-1">
                       {feedItems.map((item) => {
                         const userId = item.kind === "activity" ? item.entry.userId : item.comment.userId;
-                        const actorName = resolveActorName(userId);
+                        const importedActor = item.kind === "activity" ? item.entry.externalActorName : null;
+                        const actorName = importedActor || resolveActorName(userId);
                         const ts = item.kind === "activity" ? item.entry.createdAt : item.comment.createdAt;
                         return (
                           <div key={item.kind === "activity" ? item.entry.id : item.comment.id} className="flex items-start gap-2.5">
                             <img
-                              src={users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
+                              src={importedActor ? generateAvatar(importedActor) : users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
                               alt={actorName}
                               className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                             />
@@ -850,12 +852,13 @@ function TaskModalForm() {
               <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto taskmodal-scroll pr-1">
                 {feedItems.map((item) => {
                   const userId = item.kind === "activity" ? item.entry.userId : item.comment.userId;
-                  const actorName = resolveActorName(userId);
+                  const importedActor = item.kind === "activity" ? item.entry.externalActorName : null;
+                        const actorName = importedActor || resolveActorName(userId);
                   const ts = item.kind === "activity" ? item.entry.createdAt : item.comment.createdAt;
                   return (
                     <div key={item.kind === "activity" ? item.entry.id : item.comment.id} className="flex items-start gap-2.5">
                       <img
-                        src={users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
+                        src={importedActor ? generateAvatar(importedActor) : users.find((u) => u.id === userId)?.avatar || currentUser?.avatar || ""}
                         alt={actorName}
                         className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                       />
