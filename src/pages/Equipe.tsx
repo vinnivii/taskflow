@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Users, Plus, X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -40,37 +40,41 @@ export function Equipe() {
   const [showFormPw, setShowFormPw]       = useState(false);
   const [formLoading, setFormLoading]     = useState(false);
   const [formError, setFormError]         = useState("");
+  const creatingMember = useRef(false);
 
   const handleCloseModal = () => {
+    if (creatingMember.current) return;
     setShowInviteModal(false);
     setFormName(""); setFormEmail(""); setFormPassword("");
     setFormRole("tecnico"); setFormError(""); setShowFormPw(false);
   };
 
   const handleCreateMember = async () => {
-    if (formLoading) return;
+    if (creatingMember.current) return;
     setFormError("");
     if (!formName.trim())           { setFormError("Informe o nome.");              return; }
     if (!formEmail.trim())          { setFormError("Informe o e-mail.");            return; }
+    const email = formEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFormError("E-mail em formato inválido."); return; }
+    if (users.some((member) => member.email.toLowerCase() === email)) { setFormError("E-mail já cadastrado."); return; }
     if (formPassword.length < 6)    { setFormError("Senha mínima de 6 caracteres."); return; }
+    if (formPassword.length > 1024) { setFormError("Senha muito longa."); return; }
 
+    creatingMember.current = true;
     setFormLoading(true);
-    const result = await createMember({
-      name: formName.trim(),
-      email: formEmail.trim(),
-      password: formPassword,
-      role: formRole,
-      department: roleDepartmentMap[formRole],
-    });
-    setFormLoading(false);
+    try {
+      const result = await createMember({ name: formName.trim(), email, password: formPassword, role: formRole });
 
-    if (!result.success) {
-      setFormError(result.error ?? "Erro ao criar membro.");
-      return;
+      if (!result.success) { setFormError(result.error ?? "Erro ao criar membro."); return; }
+      addToast({ type: "success", title: "Membro criado com sucesso", message: "O usuário já pode acessar o sistema com o e-mail e a senha cadastrados." });
+      creatingMember.current = false;
+      handleCloseModal();
+    } catch {
+      setFormError("Não foi possível confirmar o cadastro. Confira a lista da equipe antes de repetir a operação.");
+    } finally {
+      creatingMember.current = false;
+      setFormLoading(false);
     }
-
-    addToast({ type: "success", title: "Membro criado", message: `${formName.trim()} foi adicionado ao sistema.` });
-    handleCloseModal();
   };
 
   // Filter members
@@ -366,9 +370,11 @@ export function Equipe() {
           <div
             className={`relative bg-[var(--c-surface)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${isMobile ? "w-[95vw]" : "max-w-[400px] w-[90vw]"} p-4 md:p-6 animate-in zoom-in-95 fade-in duration-350`}
             onClick={(e) => e.stopPropagation()}
+            role="dialog" aria-modal="true" aria-label="Criar membro"
           >
             <button
               onClick={handleCloseModal}
+              disabled={formLoading} aria-label="Fechar cadastro"
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)]"
             >
               <X size={18} />
@@ -378,10 +384,11 @@ export function Equipe() {
               Criar membro
             </h2>
 
-            <div className="space-y-3">
+            <form noValidate onSubmit={(event) => { event.preventDefault(); void handleCreateMember(); }}>
+            <fieldset disabled={formLoading} className="space-y-3">
               {formError && (
                 <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-md px-3 py-2">
-                  <p className="text-[#EF4444] text-[12px]">{formError}</p>
+                  <p role="alert" className="text-[#EF4444] text-[12px]">{formError}</p>
                 </div>
               )}
 
@@ -392,6 +399,7 @@ export function Equipe() {
                 </label>
                 <input
                   type="text"
+                  aria-label="Nome completo" autoComplete="name" maxLength={256}
                   value={formName}
                   onChange={(e) => { setFormName(e.target.value); setFormError(""); }}
                   placeholder="Ex: João Silva"
@@ -406,6 +414,7 @@ export function Equipe() {
                 </label>
                 <input
                   type="email"
+                  aria-label="E-mail" autoComplete="email" maxLength={256}
                   value={formEmail}
                   onChange={(e) => { setFormEmail(e.target.value); setFormError(""); }}
                   placeholder="email@softcom.com"
@@ -421,6 +430,7 @@ export function Equipe() {
                 <div className="relative">
                   <input
                     type={showFormPw ? "text" : "password"}
+                    aria-label="Senha inicial" autoComplete="new-password" minLength={6} maxLength={1024}
                     value={formPassword}
                     onChange={(e) => { setFormPassword(e.target.value); setFormError(""); }}
                     placeholder="Mínimo 6 caracteres"
@@ -428,6 +438,7 @@ export function Equipe() {
                   />
                   <button
                     type="button"
+                    aria-label={showFormPw ? "Ocultar senha inicial" : "Mostrar senha inicial"}
                     onClick={() => setShowFormPw(!showFormPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-2)] hover:text-[var(--c-text)] transition-colors"
                   >
@@ -443,6 +454,7 @@ export function Equipe() {
                 </label>
                 <select
                   value={formRole}
+                  aria-label="Cargo"
                   onChange={(e) => setFormRole(e.target.value as UserRole)}
                   className="w-full h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md px-3 text-[13px] text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)] cursor-pointer"
                 >
@@ -469,13 +481,14 @@ export function Equipe() {
               </div>
 
               <button
-                onClick={() => void handleCreateMember()}
+                type="submit"
                 disabled={formLoading}
                 className="w-full h-10 bg-[#F2C94C] text-[#0A0A0A] text-[13px] font-semibold rounded-md hover:bg-[#F5D76A] transition-colors mt-1 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {formLoading ? <Loader2 size={15} className="animate-spin" /> : "Criar membro"}
               </button>
-            </div>
+            </fieldset>
+            </form>
           </div>
         </div>
       )}
