@@ -297,9 +297,13 @@ export function Quadro() {
       }
     }
 
-    // Sort by priority then date
+    // Preserve the original Trello order for imported cards in the same column.
+    // Unrelated and newly created tasks retain the existing priority/date ordering.
     const priorityOrder = ["urgent", "high", "medium", "low"];
     result.sort((a, b) => {
+      if (a.columnId === b.columnId && a.trelloPosition != null && b.trelloPosition != null) {
+        return a.trelloPosition - b.trelloPosition;
+      }
       const pa = priorityOrder.indexOf(a.priority);
       const pb = priorityOrder.indexOf(b.priority);
       if (pa !== pb) return pa - pb;
