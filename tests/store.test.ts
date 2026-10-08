@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kanban, KanbanColumn, Task, User } from "@/types";
 
-type Query = { table: string; filters: Record<string, unknown>; offset: number; end: number; operation: string };
+type Query = { table: string; filters: Record<string, unknown>; offset: number; end: number; operation: string; values?: unknown };
 type Response = { data: unknown; error: { message: string } | null };
 const mock = vi.hoisted(() => {
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: vi.fn() });
@@ -18,7 +18,7 @@ vi.mock("@/utils/supabase", () => {
         select() { return builder; }, order() { return builder; }, single() { return builder; },
         eq(key: string, value: unknown) { query.filters[key] = value; return builder; },
         range(offset: number, end: number) { query.offset = offset; query.end = end; return builder; },
-        insert() { query.operation = "insert"; return builder; }, update() { query.operation = "update"; return builder; }, delete() { query.operation = "delete"; return builder; },
+        insert(values: unknown) { query.operation = "insert"; query.values = values; return builder; }, update(values: unknown) { query.operation = "update"; query.values = values; return builder; }, delete() { query.operation = "delete"; return builder; },
         then(resolve: (value: Response) => unknown, reject: (reason: unknown) => unknown) { mock.queries.push(query); return mock.response(query).then(resolve, reject); },
       };
       return builder;
@@ -45,6 +45,77 @@ beforeEach(() => {
   mock.queries = []; mock.handlers = []; mock.removed.mockClear();
   mock.response = async (query) => ({ data: query.table === "tasks" ? [taskRow(String(query.filters.kanban_id))] : query.table === "kanban_columns" ? [columnRow(String(query.filters.kanban_id))] : [], error: null });
   useStore.setState({ currentUser: user, isAuthenticated: true, kanbans, activeKanbanId: null, tasks: [], columns: [], scopeLoading: false, scopeError: null, taskModalOpen: false });
+});
+
+describe("status management store", () => {
+  it("creates a column in the captured Kanban and orders it using the existing scoped RPC without writing tasks", async () => {
+    const rows = [columnRow("a")];
+    useStore.setState({ activeKanbanId: "a", columns: [column], tasks: [task], taskModalOpen: true });
+    mock.response = async (query) => {
+      if (query.table === "kanban_columns" && query.operation === "insert") {
+        const created = { ...columnRow("a"), ...query.values as object, id: "new-status" }; rows.push(created); return { data: created, error: null };
+      }
+      if (query.operation === "rpc") {
+        (query.filters.p_ids as string[]).forEach((id, position) => { rows.find((row) => row.id === id)!.position = position; });
+        return { data: null, error: null };
+      }
+      return { data: [...rows].sort((a, b) => a.position - b.position), error: null };
+    };
+    expect(await useStore.getState().createColumn({ key: "custom", name: "Custom", color: "#8844CC", kind: "normal", position: 0 })).toBe(true);
+    expect(mock.queries[0].values).toEqual({ key: "custom", name: "Custom", color: "#8844CC", kind: "normal", position: 1, kanban_id: "a" });
+    expect(mock.queries.find((query) => query.operation === "rpc")?.filters).toEqual({ p_kanban_id: "a", p_ids: ["new-status", column.id] });
+    expect(useStore.getState().columns.map((entry) => entry.id)).toEqual(["new-status", column.id]);
+    expect(useStore.getState().tasks).toEqual([task]); expect(useStore.getState().taskModalOpen).toBe(true);
+    expect(mock.queries.some((query) => query.table === "tasks")).toBe(false);
+  });
+
+  it("preserves a committed creation when ordering fails and never reports that the insert should be retried", async () => {
+    useStore.setState({ activeKanbanId: "a", columns: [column] });
+    const created = { ...columnRow("a"), id: "new-status", position: 1 };
+    mock.response = async (query) => query.operation === "rpc" ? { data: null, error: { message: "List changed" } }
+      : { data: query.operation === "insert" ? created : [columnRow("a"), created], error: null };
+    expect(await useStore.getState().createColumn({ key: "custom", name: "Custom", color: "#123456", kind: "normal", position: 0 })).toBe(true);
+    expect(useStore.getState().columns).toHaveLength(2);
+    expect(mock.queries.filter((query) => query.operation === "insert")).toHaveLength(1);
+  });
+
+  it("updates only column metadata and rejects zero affected rows without changing tasks or identity", async () => {
+    useStore.setState({ activeKanbanId: "a", columns: [column], tasks: [task] });
+    mock.response = async () => ({ data: [], error: null });
+    expect(await useStore.getState().updateColumn(column.id, { name: "Renamed", color: "#AABBCC" })).toBe(false);
+    expect(useStore.getState().columns[0]).toEqual(column);
+    mock.response = async (query) => ({ data: query.operation === "update" ? [{ id: column.id }] : [{ ...columnRow("a"), name: "Renamed", color: "#AABBCC" }], error: null });
+    expect(await useStore.getState().updateColumn(column.id, { name: "Renamed", color: "#AABBCC" })).toBe(true);
+    expect(useStore.getState().columns[0]).toMatchObject({ id: column.id, key: column.key, name: "Renamed", color: "#AABBCC" });
+    expect(mock.queries[1]).toMatchObject({ table: "kanban_columns", filters: { id: column.id, kanban_id: "a" }, values: { name: "Renamed", color: "#AABBCC" } });
+    expect(useStore.getState().tasks).toEqual([task]);
+  });
+
+  it("does not inject a pending creation into another route or reorder that route", async () => {
+    useStore.setState({ activeKanbanId: "a", columns: [column] });
+    let finish!: (response: Response) => void;
+    const response = mock.response;
+    mock.response = async (query) => query.operation === "insert" ? new Promise((resolve) => { finish = resolve; }) : response(query);
+    const pending = useStore.getState().createColumn({ key: "custom", name: "Custom", color: "#123456", kind: "normal", position: 0 });
+    await useStore.getState().setActiveKanban("b");
+    finish({ data: { ...columnRow("a"), id: "new-status" }, error: null });
+    expect(await pending).toBe(true);
+    expect(useStore.getState().activeKanbanId).toBe("b");
+    expect(useStore.getState().columns.map((entry) => entry.kanbanId)).toEqual(["b"]);
+    expect(mock.queries.some((query) => query.operation === "rpc")).toBe(false);
+  });
+
+  it("rejects every ordinary role and foreign column management before sending a request", async () => {
+    useStore.setState({ activeKanbanId: "a", columns: [column] });
+    expect(await useStore.getState().updateColumn("b-column", { name: "Denied" })).toBe(false);
+    for (const role of ["tecnico", "estagiario", "comercial", "financeiro"] as const) {
+      useStore.setState({ currentUser: { ...user, role } });
+      expect(await useStore.getState().createColumn({ key: "custom", name: "Custom", color: "#123456", kind: "normal" })).toBe(false);
+      expect(await useStore.getState().updateColumn(column.id, { name: "Denied" })).toBe(false);
+      expect(await useStore.getState().reorderColumns([column.id])).toBe(false);
+    }
+    expect(mock.queries).toEqual([]);
+  });
 });
 
 describe("active Kanban store isolation", () => {

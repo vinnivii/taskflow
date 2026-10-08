@@ -3,7 +3,36 @@ import type { Page } from "@playwright/test";
 
 type Row = Record<string, unknown>;
 const timestamp = () => new Date().toISOString();
-export async function mockSupabase(page: Page, role = "supervisor_geral") {
+export async function mockSupabase(page: Page, role = "supervisor_geral", realtime = false) {
+  type Binding = { id: number; schema: string; table: string; event: string; filter?: string };
+  const emitters: ((row: Row, event: string, old: Row) => number)[] = [];
+  let bindingId = 0;
+  if (realtime) await page.routeWebSocket("ws://127.0.0.1:54321/realtime/v1/**", (socket) => {
+    const subscriptions = new Map<string, { joinRef: string; bindings: Binding[] }>();
+    socket.onMessage((message) => {
+      if (typeof message !== "string") return;
+      const [joinRef, ref, topic, event, payload] = JSON.parse(message);
+      let response = {};
+      if (event === "phx_join") {
+        const bindings = (payload.config.postgres_changes ?? []).map((binding: Omit<Binding, "id">) => ({ ...binding, id: ++bindingId }));
+        subscriptions.set(topic, { joinRef, bindings }); response = { postgres_changes: bindings };
+      }
+      if (event === "phx_leave") subscriptions.delete(topic);
+      if (["phx_join", "phx_leave", "heartbeat"].includes(event)) socket.send(JSON.stringify([joinRef, ref, topic, "phx_reply", { status: "ok", response }]));
+    });
+    socket.onClose(() => subscriptions.clear());
+    emitters.push((row, event, old) => {
+      let sent = 0;
+      for (const [topic, subscription] of subscriptions) {
+        const ids = subscription.bindings.filter((binding) => binding.table === "kanban_columns" && (binding.event === "*" || binding.event === event)
+          && (event === "DELETE" ? !binding.filter : !binding.filter || binding.filter === `kanban_id=eq.${row.kanban_id}`)).map((binding) => binding.id);
+        if (!ids.length) continue;
+        socket.send(JSON.stringify([subscription.joinRef, null, topic, "postgres_changes", { ids, data: { schema: "public", table: "kanban_columns", type: event, commit_timestamp: timestamp(), columns: [], record: event === "DELETE" ? {} : row, old_record: old, errors: null } }]));
+        sent++;
+      }
+      return sent;
+    });
+  });
   const actor = { id: "10000000-0000-4000-8000-000000000001", email: "supervisor@example.test", name: "Supervisor Teste", role, department: "suporte", avatar: "", created_at: timestamp() };
   const authUser = { ...actor, aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {}, identities: [] };
   const jwt = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: actor.id, aud: "authenticated", role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url"), "test-signature"].join(".");
@@ -112,7 +141,8 @@ export async function mockSupabase(page: Page, role = "supervisor_geral") {
     const single = request.headers().accept?.includes("application/vnd.pgrst.object");
     await route.fulfill({ status: 200, json: single ? rows[0] ?? null : rows });
   });
-  return { tables, taskRequests, adminRequests, adminPassword, memberPasswords, principal, development, initial, work, final, blocked };
+  const emitColumnChange = (row: Row, event = "UPDATE", old: Row = { id: row.id }) => emitters.reduce((count, emit) => count + emit(row, event, old), 0);
+  return { tables, taskRequests, adminRequests, adminPassword, memberPasswords, principal, development, initial, work, final, blocked, emitColumnChange };
 }
 
 export async function login(page: Page) {
