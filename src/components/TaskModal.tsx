@@ -13,6 +13,7 @@ import {
   Loader2,
   ImageIcon,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +21,7 @@ import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/utils/supabase";
 import { isTaskCompleted } from "@/lib/kanban";
+import { DeleteTaskDialog } from "@/components/admin/DeleteTaskDialog";
 
 const EMPTY_ACTIVITY: ActivityEntry[] = [];
 const EMPTY_COMMENTS: Comment[] = [];
@@ -72,6 +74,7 @@ export function TaskModal() {
 }
 
 function TaskModalForm() {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const {
     taskModalMode,
     taskModalTaskId,
@@ -383,6 +386,7 @@ function TaskModalForm() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {task && perms.canDeleteTask && <button aria-label="Excluir tarefa" title="Excluir tarefa" onClick={() => setConfirmDelete(true)} className="h-8 w-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-[var(--c-hover)]"><Trash2 size={15} /></button>}
             {taskModalMode === "view" && task && perms.canEditTaskModal() && (
               <button
                 onClick={() => useStore.getState().openTaskModal("edit", task.id)}
@@ -402,6 +406,7 @@ function TaskModalForm() {
           </div>
         </div>
 
+        {confirmDelete && task && <DeleteTaskDialog task={task} onClose={() => setConfirmDelete(false)} />}
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 taskmodal-scroll">
           {/* Title */}

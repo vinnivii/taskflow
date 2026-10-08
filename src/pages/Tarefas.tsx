@@ -32,6 +32,8 @@ import {
 } from "@/types";
 import type { Task } from "@/types";
 import { isTaskCompleted, selectActiveKanban } from "@/lib/kanban";
+import { DeleteTaskDialog } from "@/components/admin/DeleteTaskDialog";
+import { TaskActionsMenu } from "@/components/admin/TaskActionsMenu";
 
 type SortColumn = "title" | "assignee" | "department" | "priority" | "status" | "dueDate" | null;
 type SortDirection = "asc" | "desc";
@@ -57,6 +59,7 @@ export function Tarefas() {
   const [perPage, setPerPage] = useState(20);
   const [unarchiveDialogOpen, setUnarchiveDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
 
   const handlePerPageChange = (n: number) => {
     setPerPage(n);
@@ -222,6 +225,7 @@ export function Tarefas() {
                     {priorityDisplayNames[task.priority]}
                   </span>
                   <div className="flex items-center gap-2">
+                    {perms.canDeleteTask && <TaskActionsMenu task={task} onDelete={() => setDeleteTask(task)} />}
                     {task.dueDate && (
                       <span className={`flex items-center gap-1 text-[11px] ${isOverdue ? "text-[#EF4444]" : "text-[var(--c-muted-2)]"}`}>
                         <Clock size={11} />
@@ -254,6 +258,7 @@ export function Tarefas() {
             </button>
           </div>
         )}
+        {deleteTask && <DeleteTaskDialog task={deleteTask} onClose={() => setDeleteTask(null)} />}
       </AppLayout>
     );
   }
@@ -305,6 +310,7 @@ export function Tarefas() {
                       </span>
                     </th>
                   ))}
+                  {perms.canDeleteTask && <th className="text-xs text-[var(--c-muted)] px-2">Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -414,6 +420,7 @@ export function Tarefas() {
                       <td className="py-3 px-4 text-[13px] text-[var(--c-muted-2)] whitespace-nowrap">
                         {formatDueDate(task)}
                       </td>
+                      {perms.canDeleteTask && <td className="px-2"><TaskActionsMenu task={task} onDelete={() => setDeleteTask(task)} /></td>}
                     </tr>
                   );
                 })}
@@ -520,6 +527,7 @@ export function Tarefas() {
           )}
         </>
       )}
+      {deleteTask && <DeleteTaskDialog task={deleteTask} onClose={() => setDeleteTask(null)} />}
     </AppLayout>
   );
 }

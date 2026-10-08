@@ -315,6 +315,8 @@ interface AppState {
   markAllNotificationsRead: () => Promise<void>;
 }
 
+const deletingTasks = new Set<string>();
+
 export const useStore = create<AppState>((set, get) => {
   let scopeVersion = 0;
   let taskRequest = 0;
@@ -757,21 +759,20 @@ export const useStore = create<AppState>((set, get) => {
   },
   deleteTask: async (taskId) => {
     const task = get().tasks.find((entry) => entry.id === taskId);
-    if (!task || !getKanbanPermissions(get().currentUser, get().columns).canDeleteTask) return false;
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("kanban_id", task.kanbanId);
-
-    if (error) {
-      get().addToast({
-        type: "error",
-        title: "Erro ao remover tarefa",
-        message: error.message,
-      });
-      return false;
-    }
-
-    set((state) => ({ tasks: state.tasks.filter((task) => task.id !== taskId) }));
-    void get().fetchKanbans();
-    return true;
+    if (!task || task.kanbanId !== get().activeKanbanId || !getKanbanPermissions(get().currentUser, get().columns).canDeleteTask || deletingTasks.has(taskId)) return false;
+    deletingTasks.add(taskId);
+    try {
+      const { data, error } = await supabase.rpc("delete_task_with_cleanup", { p_task_id: taskId, p_kanban_id: task.kanbanId });
+      if (error || data !== taskId) {
+        get().addToast({ type: "error", title: "Erro ao remover tarefa", message: error?.message ?? "A exclus\u00e3o da tarefa n\u00e3o foi confirmada." });
+        return false;
+      }
+      set((state) => ({ tasks: state.tasks.filter((entry) => entry.id !== taskId) }));
+      if (get().taskModalTaskId === taskId) get().closeTaskModal();
+      void get().fetchKanbans();
+      void invokeAdmin("cleanup-task-storage", {});
+      return true;
+    } finally { deletingTasks.delete(taskId); }
   },
   moveTask: async (taskId, columnId) => {
     const { currentUser, tasks, columns, activeKanbanId } = get();
