@@ -1,21 +1,39 @@
 import { create } from "zustand";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import type { Session } from "@supabase/supabase-js";
 import type {
   User,
   Task,
-  Board,
+  Kanban,
+  KanbanColumn,
+  KanbanColumnKind,
   Comment,
   ActivityEntry,
   Notification,
   ToastMessage,
-  TaskStatus,
   TaskPriority,
   Department,
   Customer,
 } from "@/types";
 import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { generateAvatar } from "@/utils/avatar";
+import { getKanbanPermissions, isTaskCompleted, sortColumns } from "@/lib/kanban";
+
+type KanbanRow = {
+  id: string; slug: string; name: string; color: string; position: number;
+  created_by: string | null; created_at: string; tasks?: { count: number }[];
+};
+type ColumnRow = {
+  id: string; kanban_id: string; key: string; name: string; color: string;
+  kind: KanbanColumnKind; position: number; created_at: string;
+};
+const toKanban = (row: KanbanRow): Kanban => ({
+  id: row.id, slug: row.slug, name: row.name, color: row.color, position: row.position,
+  createdBy: row.created_by, createdAt: new Date(row.created_at), taskCount: row.tasks?.[0]?.count ?? 0,
+});
+const toColumn = (row: ColumnRow): KanbanColumn => ({
+  id: row.id, kanbanId: row.kanban_id, key: row.key, name: row.name, color: row.color,
+  kind: row.kind, position: row.position, createdAt: new Date(row.created_at),
+});
 
 async function createNotification(
   userId: string,
@@ -48,7 +66,8 @@ type TaskRow = {
   title: string;
   description: string;
   priority: TaskPriority;
-  status: TaskStatus;
+  kanban_id: string;
+  column_id: string;
   department: Department;
   assignee_id: string | null;
   customer_id: string | null;
@@ -99,7 +118,8 @@ const toTask = (row: TaskRow): Task => ({
   title: row.title,
   description: row.description,
   priority: row.priority,
-  status: row.status,
+  kanbanId: row.kanban_id,
+  columnId: row.column_id,
   department: row.department,
   assigneeId: row.assignee_id,
   customerId: row.customer_id ?? null,
@@ -118,11 +138,13 @@ const toTaskInsert = (task: Task) => ({
   title: task.title,
   description: task.description,
   priority: task.priority,
-  status: task.status,
+  kanban_id: task.kanbanId,
+  column_id: task.columnId,
+  id_rfc: task.idRfc,
   department: task.department,
   assignee_id: isUuid(task.assigneeId) ? task.assigneeId : null,
   customer_id: isUuid(task.customerId) ? task.customerId : null,
-  creator_id: isUuid(task.creatorId) ? task.creatorId : crypto.randomUUID(),
+  creator_id: task.creatorId,
   due_date: task.dueDate ? task.dueDate.toISOString() : null,
   tags: task.tags,
   attachments_count: task.attachmentsCount,
@@ -138,7 +160,7 @@ const toTaskUpdate = (updates: Partial<Task>) => {
   if (updates.title !== undefined) payload.title = updates.title;
   if (updates.description !== undefined) payload.description = updates.description;
   if (updates.priority !== undefined) payload.priority = updates.priority;
-  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.columnId !== undefined) payload.column_id = updates.columnId;
   if (updates.department !== undefined) payload.department = updates.department;
   if (updates.assigneeId !== undefined) {
     payload.assignee_id = isUuid(updates.assigneeId) ? updates.assigneeId : null;
@@ -173,7 +195,10 @@ interface AppState {
 
   // Realtime
   _realtimeChannel: RealtimeChannel | null;
+  _taskChannel: RealtimeChannel | null;
+  _notificationsChannel: RealtimeChannel | null;
   subscribeRealtime: () => void;
+  subscribeTaskRealtime: (kanbanId: string) => void;
   unsubscribeRealtime: () => void;
 
   // Users
@@ -187,20 +212,33 @@ interface AppState {
     department: User["department"];
   }) => Promise<{ success: boolean; error?: string }>;
 
-  // Boards
-  boards: Board[];
-  fetchBoards: () => Promise<void>;
-  createBoard: (data: { key: string; name: string; color: string }) => Promise<boolean>;
-  updateBoard: (id: string, data: Partial<Pick<Board, "name" | "color" | "position">>) => Promise<boolean>;
-  deleteBoard: (id: string) => Promise<boolean>;
+  // The active ID is a cache of the route, not a second navigation source.
+  kanbans: Kanban[];
+  kanbansLoaded: boolean;
+  kanbansError: string | null;
+  activeKanbanId: string | null;
+  scopeLoading: boolean;
+  scopeError: string | null;
+  setActiveKanban: (id: string | null) => Promise<void>;
+  fetchKanbans: () => Promise<boolean>;
+  createKanban: (data: { name: string; slug: string; color: string }) => Promise<Kanban | null>;
+  updateKanban: (id: string, data: Partial<Pick<Kanban, "name" | "slug" | "color">>) => Promise<boolean>;
+  deleteKanban: (id: string) => Promise<boolean>;
+  reorderKanbans: (ids: string[]) => Promise<boolean>;
+  columns: KanbanColumn[];
+  fetchColumns: (kanbanId: string) => Promise<boolean>;
+  createColumn: (data: { key: string; name: string; color: string; kind: KanbanColumnKind }) => Promise<boolean>;
+  updateColumn: (id: string, data: Partial<Pick<KanbanColumn, "name" | "color" | "kind">>) => Promise<boolean>;
+  deleteColumn: (id: string) => Promise<boolean>;
+  reorderColumns: (ids: string[]) => Promise<boolean>;
 
   // Tasks
   tasks: Task[];
-  fetchTasks: () => Promise<void>;
+  fetchTasks: (kanbanId?: string) => Promise<boolean>;
   addTask: (task: Task) => Promise<boolean>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
-  moveTask: (taskId: string, newStatus: TaskStatus) => Promise<boolean>;
+  moveTask: (taskId: string, columnId: string) => Promise<boolean>;
   archiveTask: (taskId: string) => Promise<boolean>;
   unarchiveTask: (taskId: string) => Promise<boolean>;
 
@@ -220,7 +258,7 @@ interface AppState {
     department: "all" | Department;
     assignee: "all" | "me" | string;
     priority: "all" | TaskPriority;
-    status: "all" | TaskStatus;
+    columnId: "all" | string;
   };
   setFilter: (
     key: keyof AppState["filters"],
@@ -252,11 +290,11 @@ interface AppState {
   taskModalOpen: boolean;
   taskModalMode: "create" | "view" | "edit";
   taskModalTaskId: string | null;
-  taskModalDefaultStatus: TaskStatus | null;
+  taskModalDefaultColumnId: string | null;
   openTaskModal: (
     mode: "create" | "view" | "edit",
     taskId?: string | null,
-    defaultStatus?: TaskStatus | null
+    defaultColumnId?: string | null
   ) => void;
   closeTaskModal: () => void;
 
@@ -276,13 +314,18 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set, get) => {
+  let scopeVersion = 0;
+  let taskRequest = 0;
+  let columnRequest = 0;
+  let kanbanRequest = 0;
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_OUT" || !session) {
       get().unsubscribeRealtime();
       set({
         currentUser: null,
         isAuthenticated: false,
-        tasks: [],
+        tasks: [], kanbans: [], columns: [], activeKanbanId: null,
+        kanbansLoaded: false, kanbansError: null, scopeLoading: false, scopeError: null, taskModalOpen: false,
         users: [],
         notifications: [],
         unreadCount: 0,
@@ -298,7 +341,7 @@ export const useStore = create<AppState>((set, get) => {
   login: (user) => {
     set({ currentUser: user, isAuthenticated: true });
     void get().fetchUsers();
-    void get().fetchBoards();
+    void get().fetchKanbans();
     void get().fetchCustomers();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
@@ -309,11 +352,12 @@ export const useStore = create<AppState>((set, get) => {
     set({
       currentUser: null,
       isAuthenticated: false,
-      tasks: [],
+      tasks: [], kanbans: [], columns: [], activeKanbanId: null,
+      kanbansLoaded: false, kanbansError: null, scopeLoading: false, scopeError: null, taskModalOpen: false,
       users: [],
       notifications: [],
       unreadCount: 0,
-      filters: { department: "all", assignee: "all", priority: "all", status: "all" },
+      filters: { department: "all", assignee: "all", priority: "all", columnId: "all" },
       searchQuery: "",
     });
   },
@@ -347,143 +391,197 @@ export const useStore = create<AppState>((set, get) => {
 
     set({ currentUser: user, isAuthenticated: true, authLoading: false });
     void get().fetchUsers();
-    void get().fetchBoards();
+    void get().fetchKanbans();
     void get().fetchCustomers();
     void get().fetchNotifications(user.id);
     get().subscribeRealtime();
   },
 
-  // Realtime
+  // Realtime: metadata is shared; task and column payloads are scoped to the route.
   _realtimeChannel: null,
+  _taskChannel: null,
+  _notificationsChannel: null,
   subscribeRealtime: () => {
-    // Avoid duplicate subscriptions
     if (get()._realtimeChannel) return;
-
-    const channel = supabase
-      .channel("tasks-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "tasks" },
-        (payload) => {
-          const newTask = toTask(payload.new as TaskRow);
-          set((state) => {
-            // Avoid duplicates (we may have added it optimistically)
-            if (state.tasks.some((t) => t.id === newTask.id)) return state;
-            return { tasks: [newTask, ...state.tasks] };
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "tasks" },
-        (payload) => {
-          const updatedTask = toTask(payload.new as TaskRow);
-          set((state) => ({
-            tasks: state.tasks.map((t) =>
-              t.id === updatedTask.id
-                ? { ...updatedTask, comments: t.comments, activityLog: t.activityLog }
-                : t
-            ),
-          }));
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "tasks" },
-        (payload) => {
-          const deletedId = (payload.old as { id: string }).id;
-          set((state) => ({
-            tasks: state.tasks.filter((t) => t.id !== deletedId),
-          }));
-        }
-      )
-      .subscribe();
-
-    const currentUserId = get().currentUser?.id;
-    if (currentUserId) {
-      supabase
-        .channel("notifications-realtime")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${currentUserId}`,
-          },
-          (payload) => {
-            const row = payload.new as NotificationRow;
-            const notification: Notification = {
-              id: row.id,
-              userId: row.user_id,
-              title: row.title,
-              message: row.message,
-              read: row.is_read,
-              type: row.type,
-              taskId: row.task_id,
-              createdAt: new Date(row.created_at),
-            };
-            set((state) => ({
-              notifications: [notification, ...state.notifications],
-              unreadCount: state.unreadCount + 1,
-            }));
-          }
-        )
-        .subscribe();
-    }
-
-    set({ _realtimeChannel: channel });
+    const userId = get().currentUser?.id;
+    if (!userId) return;
+    const metadata = supabase.channel(`kanban-metadata-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "kanbans" }, () => {
+        if (get().currentUser?.id === userId) void get().fetchKanbans();
+      }).subscribe();
+    const notifications = supabase.channel(`notifications-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, (payload) => {
+        if (get().currentUser?.id !== userId) return;
+        const row = payload.new as NotificationRow;
+        const notification: Notification = {
+          id: row.id, userId: row.user_id, title: row.title, message: row.message,
+          read: row.is_read, type: row.type, taskId: row.task_id, createdAt: new Date(row.created_at),
+        };
+        set((state) => state.notifications.some((entry) => entry.id === row.id) ? state : ({
+          notifications: [notification, ...state.notifications], unreadCount: state.unreadCount + (row.is_read ? 0 : 1),
+        }));
+      }).subscribe();
+    set({ _realtimeChannel: metadata, _notificationsChannel: notifications });
+  },
+  subscribeTaskRealtime: (kanbanId) => {
+    const previous = get()._taskChannel;
+    if (previous) void supabase.removeChannel(previous);
+    const version = scopeVersion;
+    const isCurrent = () => scopeVersion === version && get().activeKanbanId === kanbanId && get().isAuthenticated;
+    const refreshTask = () => { if (isCurrent()) { void get().fetchTasks(kanbanId); void get().fetchKanbans(); } };
+    const channel = supabase.channel(`kanban-${kanbanId}-${version}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tasks", filter: `kanban_id=eq.${kanbanId}` }, refreshTask)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks", filter: `kanban_id=eq.${kanbanId}` }, refreshTask)
+      // PostgreSQL DELETE events cannot be filtered. Only remove an ID already in this scope.
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tasks" }, (payload) => {
+        if (!isCurrent()) return;
+        const id = (payload.old as { id: string }).id;
+        if (get().tasks.some((task) => task.id === id)) refreshTask();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "kanban_columns", filter: `kanban_id=eq.${kanbanId}` }, () => {
+        if (isCurrent()) void get().fetchColumns(kanbanId);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "kanban_columns" }, (payload) => {
+        if (isCurrent() && get().columns.some((column) => column.id === (payload.old as { id: string }).id)) void get().fetchColumns(kanbanId);
+      })
+      .subscribe((status) => { if (status === "SUBSCRIBED" && isCurrent() && !get().scopeLoading) { refreshTask(); void get().fetchColumns(kanbanId); } });
+    set({ _taskChannel: channel });
   },
   unsubscribeRealtime: () => {
-    const channel = get()._realtimeChannel;
-    if (channel) {
-      supabase.removeChannel(channel);
-      set({ _realtimeChannel: null });
+    scopeVersion++; taskRequest++; columnRequest++; kanbanRequest++;
+    for (const channel of [get()._realtimeChannel, get()._taskChannel, get()._notificationsChannel]) {
+      if (channel) void supabase.removeChannel(channel);
     }
+    set({ _realtimeChannel: null, _taskChannel: null, _notificationsChannel: null });
   },
 
-  // Boards
-  boards: [],
-  fetchBoards: async () => {
-    const defaultBoards: Board[] = [
-      { id: "1", key: "novo",         name: "Novo",        color: "#A855F7", position: 0 },
-      { id: "2", key: "em_andamento", name: "Em Andamento",color: "#3B82F6", position: 1 },
-      { id: "3", key: "em_revisao",   name: "Em Revisão",  color: "#F97316", position: 2 },
-      { id: "4", key: "concluido",    name: "Concluído",   color: "#22C55E", position: 3 },
-      { id: "5", key: "bloqueado",    name: "Bloqueado",   color: "#EF4444", position: 4 },
-    ];
-    const { data, error } = await supabase
-      .from("boards")
-      .select("*")
-      .order("position", { ascending: true });
-    if (error || !data || data.length === 0) {
-      set({ boards: defaultBoards });
-      return;
+  kanbans: [],
+  kanbansLoaded: false,
+  kanbansError: null,
+  activeKanbanId: null,
+  scopeLoading: false,
+  scopeError: null,
+  columns: [],
+  setActiveKanban: async (id) => {
+    if (id === get().activeKanbanId && !get().scopeError) return;
+    if (id && !get().kanbans.some((kanban) => kanban.id === id)) return;
+    const version = ++scopeVersion;
+    taskRequest++; columnRequest++;
+    const previous = get()._taskChannel;
+    if (previous) void supabase.removeChannel(previous);
+    set({ activeKanbanId: id, columns: [], tasks: [], scopeLoading: !!id, scopeError: null,
+      _taskChannel: null, filters: { department: "all", assignee: "all", priority: "all", columnId: "all" },
+      searchQuery: "", taskModalOpen: false, taskModalTaskId: null, taskModalDefaultColumnId: null });
+    if (!id) return;
+    const userId = get().currentUser?.id;
+    if (userId) localStorage.setItem(`tf_kanban_${userId}`, id);
+    get().subscribeTaskRealtime(id);
+    const [columnsLoaded, tasksLoaded] = await Promise.all([get().fetchColumns(id), get().fetchTasks(id)]);
+    if (scopeVersion === version) set({ scopeLoading: false,
+      scopeError: columnsLoaded && tasksLoaded ? null : get().scopeError ?? "Não foi possível carregar este Kanban." });
+  },
+  fetchKanbans: async () => {
+    const request = ++kanbanRequest;
+    const userId = get().currentUser?.id;
+    const { data, error } = await supabase.from("kanbans").select("*,tasks(count)")
+      .order("position", { ascending: true }).order("id", { ascending: true });
+    if (request !== kanbanRequest || get().currentUser?.id !== userId) return false;
+    if (error || !data) {
+      set({ kanbansLoaded: true, kanbansError: error?.message ?? "Erro ao carregar Kanbans" });
+      return false;
     }
-    set({ boards: data as Board[] });
-  },
-  createBoard: async ({ key, name, color }) => {
-    const boards = get().boards;
-    const position = boards.length > 0 ? Math.max(...boards.map(b => b.position)) + 1 : 0;
-    const { error } = await supabase.from("boards").insert({ key, name, color, position });
-    if (error) return false;
-    await get().fetchBoards();
+    set({ kanbans: (data as KanbanRow[]).map(toKanban), kanbansLoaded: true, kanbansError: null });
     return true;
   },
-  updateBoard: async (id, data) => {
-    const { error } = await supabase.from("boards").update(data).eq("id", id);
-    if (error) return false;
-    await get().fetchBoards();
+  createKanban: async ({ name, slug, color }) => {
+    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return null;
+    const { data, error } = await supabase.rpc("create_kanban", { p_name: name, p_slug: slug, p_color: color });
+    if (error || !data) {
+      get().addToast({ type: "error", title: "Erro ao criar Kanban", message: error?.message ?? "Tente novamente." });
+      return null;
+    }
+    const kanban = toKanban((Array.isArray(data) ? data[0] : data) as KanbanRow);
+    await get().fetchKanbans();
+    return kanban;
+  },
+  updateKanban: async (id, data) => {
+    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return false;
+    const { data: rows, error } = await supabase.from("kanbans").update(data).eq("id", id).select("id");
+    if (error || !rows?.length) {
+      get().addToast({ type: "error", title: "Erro ao atualizar Kanban", message: error?.message ?? "Sem permissão ou Kanban removido." });
+      return false;
+    }
+    await get().fetchKanbans();
     return true;
   },
-  deleteBoard: async (id) => {
-    const board = get().boards.find(b => b.id === id);
-    if (!board) return false;
-    const taskCount = get().tasks.filter(t => t.status === board.key && !t.archived).length;
-    if (taskCount > 0) return false;
-    const { error } = await supabase.from("boards").delete().eq("id", id);
-    if (error) return false;
-    await get().fetchBoards();
+  deleteKanban: async (id) => {
+    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return false;
+    const kanban = get().kanbans.find((entry) => entry.id === id);
+    if (!kanban || kanban.taskCount > 0) {
+      get().addToast({ type: "error", title: "Exclusão bloqueada", message: `Este Kanban possui ${kanban?.taskCount ?? 0} tarefa(s), incluindo arquivadas.` });
+      return false;
+    }
+    const { data, error } = await supabase.from("kanbans").delete().eq("id", id).select("id");
+    if (error || !data?.length) {
+      get().addToast({ type: "error", title: "Erro ao excluir Kanban", message: error?.message ?? "Sem permissão ou Kanban removido." });
+      return false;
+    }
+    if (get().activeKanbanId === id) await get().setActiveKanban(null);
+    await get().fetchKanbans();
+    return true;
+  },
+  reorderKanbans: async (ids) => {
+    if (!getKanbanPermissions(get().currentUser, get().columns).canManageKanbans) return false;
+    const { error } = await supabase.rpc("reorder_kanbans", { p_ids: ids });
+    if (error) { get().addToast({ type: "error", title: "Erro ao ordenar Kanbans", message: error.message }); return false; }
+    await get().fetchKanbans();
+    return true;
+  },
+  fetchColumns: async (kanbanId) => {
+    if (get().activeKanbanId !== kanbanId) return false;
+    const request = ++columnRequest;
+    const { data, error } = await supabase.from("kanban_columns").select("*").eq("kanban_id", kanbanId)
+      .order("position", { ascending: true }).order("id", { ascending: true });
+    if (request !== columnRequest || get().activeKanbanId !== kanbanId) return true;
+    if (error || !data) { set({ scopeError: error?.message ?? "Erro ao carregar colunas" }); return false; }
+    const columns = sortColumns((data as ColumnRow[]).map(toColumn));
+    set((state) => ({ columns, filters: { ...state.filters,
+      columnId: state.filters.columnId === "all" || columns.some((column) => column.id === state.filters.columnId) ? state.filters.columnId : "all" } }));
+    return true;
+  },
+  createColumn: async ({ key, name, color, kind }) => {
+    const { activeKanbanId, columns, currentUser } = get();
+    if (!activeKanbanId || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
+    const position = columns.length ? Math.max(...columns.map((column) => column.position)) + 1 : 0;
+    const { error } = await supabase.from("kanban_columns").insert({ kanban_id: activeKanbanId, key, name, color, kind, position });
+    if (error) { get().addToast({ type: "error", title: "Erro ao criar coluna", message: error.message }); return false; }
+    await get().fetchColumns(activeKanbanId);
+    return true;
+  },
+  updateColumn: async (id, updates) => {
+    const { activeKanbanId, columns, currentUser } = get();
+    if (!activeKanbanId || !columns.some((column) => column.id === id) || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
+    const { data, error } = await supabase.from("kanban_columns").update(updates).eq("id", id).eq("kanban_id", activeKanbanId).select("id");
+    if (error || !data?.length) { get().addToast({ type: "error", title: "Erro ao atualizar coluna", message: error?.message ?? "Coluna removida ou sem permissão." }); return false; }
+    await get().fetchColumns(activeKanbanId);
+    return true;
+  },
+  deleteColumn: async (id) => {
+    const { activeKanbanId, columns, tasks, currentUser } = get();
+    if (!activeKanbanId || !columns.some((column) => column.id === id) || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
+    const count = tasks.filter((task) => task.columnId === id).length;
+    if (count) { get().addToast({ type: "error", title: "Exclusão bloqueada", message: `Esta coluna possui ${count} tarefa(s), incluindo arquivadas.` }); return false; }
+    const { data, error } = await supabase.from("kanban_columns").delete().eq("id", id).eq("kanban_id", activeKanbanId).select("id");
+    if (error || !data?.length) { get().addToast({ type: "error", title: "Erro ao excluir coluna", message: error?.message ?? "Coluna removida ou sem permissão." }); return false; }
+    await get().fetchColumns(activeKanbanId);
+    return true;
+  },
+  reorderColumns: async (ids) => {
+    const { activeKanbanId, columns, currentUser } = get();
+    if (!activeKanbanId || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
+    const { error } = await supabase.rpc("reorder_kanban_columns", { p_kanban_id: activeKanbanId, p_ids: ids });
+    if (error) { get().addToast({ type: "error", title: "Erro ao ordenar colunas", message: error.message }); return false; }
+    await get().fetchColumns(activeKanbanId);
     return true;
   },
 
@@ -550,24 +648,30 @@ export const useStore = create<AppState>((set, get) => {
 
   // Tasks
   tasks: [],
-  fetchTasks: async () => {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      get().addToast({
-        type: "error",
-        title: "Erro ao carregar tarefas",
-        message: error.message,
-      });
-      return;
+  fetchTasks: async (kanbanId = get().activeKanbanId ?? undefined) => {
+    if (!kanbanId || get().activeKanbanId !== kanbanId) return false;
+    const request = ++taskRequest;
+    const rows: TaskRow[] = [];
+    const pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("tasks").select("*").eq("kanban_id", kanbanId)
+        .order("created_at", { ascending: false }).order("id", { ascending: true }).range(offset, offset + pageSize - 1);
+      if (request !== taskRequest || get().activeKanbanId !== kanbanId) return true;
+      if (error || !data) { set({ scopeError: error?.message ?? "Erro ao carregar tarefas" }); return false; }
+      rows.push(...data as TaskRow[]);
+      if (data.length < pageSize) break;
     }
-
-    set({ tasks: (data as TaskRow[]).map(toTask) });
+    set((state) => ({ tasks: rows.map((row) => {
+      const previous = state.tasks.find((task) => task.id === row.id);
+      return { ...toTask(row), comments: previous?.comments, activityLog: previous?.activityLog };
+    }) }));
+    return true;
   },
   addTask: async (task) => {
+    const { activeKanbanId, columns, currentUser } = get();
+    if (!currentUser || task.creatorId !== currentUser.id || task.kanbanId !== activeKanbanId ||
+      !columns.some((column) => column.id === task.columnId && column.kanbanId === task.kanbanId) ||
+      !getKanbanPermissions(currentUser, columns).canCreateInColumn(task.columnId)) return false;
     const { data, error } = await supabase
       .from("tasks")
       .insert(toTaskInsert(task))
@@ -584,7 +688,10 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     const newTask = toTask(data as TaskRow);
-    set((state) => ({ tasks: [newTask, ...state.tasks] }));
+    set((state) => state.activeKanbanId !== newTask.kanbanId ? state : ({
+      tasks: [newTask, ...state.tasks.filter((entry) => entry.id !== newTask.id)],
+    }));
+    void get().fetchKanbans();
 
     const currentUserId = get().currentUser?.id;
     if (newTask.assigneeId && newTask.assigneeId !== currentUserId) {
@@ -602,11 +709,18 @@ export const useStore = create<AppState>((set, get) => {
   updateTask: async (taskId, updates) => {
     const currentUserId = get().currentUser?.id;
     const prev = get().tasks.find((t) => t.id === taskId);
+    const permissions = getKanbanPermissions(get().currentUser, get().columns);
+    const target = updates.columnId ? get().columns.find((column) => column.id === updates.columnId) : null;
+    if (!prev || prev.kanbanId !== get().activeKanbanId || !permissions.canEditTask(prev.creatorId, prev.assigneeId) ||
+      (updates.kanbanId !== undefined && updates.kanbanId !== prev.kanbanId) ||
+      (updates.columnId !== undefined && (!target || target.kanbanId !== prev.kanbanId ||
+        !permissions.canMoveToColumn(prev.columnId, updates.columnId)))) return false;
 
     const { data, error } = await supabase
       .from("tasks")
       .update(toTaskUpdate(updates))
       .eq("id", taskId)
+      .eq("kanban_id", prev.kanbanId)
       .select("*")
       .single();
 
@@ -628,6 +742,10 @@ export const useStore = create<AppState>((set, get) => {
       ),
     }));
 
+    if (target && currentUserId && target.id !== prev.columnId) {
+      await get().addActivityEntry(taskId, { taskId, userId: currentUserId, action: "status_changed", details: `moveu a tarefa para ${target.name}` });
+    }
+
     if (prev) {
       if (
         updates.assigneeId !== undefined &&
@@ -644,15 +762,15 @@ export const useStore = create<AppState>((set, get) => {
         );
       }
       if (
-        updates.status !== undefined &&
-        updates.status !== prev.status &&
+        updates.columnId !== undefined &&
+        updates.columnId !== prev.columnId &&
         prev.assigneeId &&
         prev.assigneeId !== currentUserId
       ) {
         void createNotification(
           prev.assigneeId,
           "Status atualizado",
-          `"${prev.title}" foi movida para ${get().boards.find(b => b.key === updates.status)?.name ?? updates.status}`,
+          `"${prev.title}" foi movida para ${get().columns.find(column => column.id === updates.columnId)?.name ?? "coluna removida"}`,
           "status_changed",
           taskId
         );
@@ -662,7 +780,9 @@ export const useStore = create<AppState>((set, get) => {
     return true;
   },
   deleteTask: async (taskId) => {
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    const task = get().tasks.find((entry) => entry.id === taskId);
+    if (!task || !getKanbanPermissions(get().currentUser, get().columns).canDeleteTask) return false;
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("kanban_id", task.kanbanId);
 
     if (error) {
       get().addToast({
@@ -674,56 +794,41 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     set((state) => ({ tasks: state.tasks.filter((task) => task.id !== taskId) }));
+    void get().fetchKanbans();
     return true;
   },
-  moveTask: async (taskId, newStatus) => {
-    const currentUserId = get().currentUser?.id;
-    const prev = get().tasks.find((t) => t.id === taskId);
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq("id", taskId)
-      .select("*")
-      .single();
-
-    if (error) {
-      get().addToast({
-        type: "error",
-        title: "Erro ao mover tarefa",
-        message: error.message,
-      });
-      return false;
-    }
-
+  moveTask: async (taskId, columnId) => {
+    const { currentUser, tasks, columns, activeKanbanId } = get();
+    const previous = tasks.find((task) => task.id === taskId);
+    const target = columns.find((column) => column.id === columnId && column.kanbanId === activeKanbanId);
+    if (!previous || !target || previous.kanbanId !== activeKanbanId || !currentUser ||
+      !getKanbanPermissions(currentUser, columns).canMoveToColumn(previous.columnId, columnId)) return false;
+    const { data, error } = await supabase.from("tasks")
+      .update({ column_id: columnId, updated_at: new Date().toISOString() }).eq("id", taskId)
+      .eq("kanban_id", previous.kanbanId).select("*").single();
+    if (error) { get().addToast({ type: "error", title: "Erro ao mover tarefa", message: error.message }); return false; }
     const movedTask = toTask(data as TaskRow);
-    set((state) => ({
-      tasks: state.tasks.map((task) =>
-        task.id === taskId
-          ? { ...movedTask, comments: task.comments, activityLog: task.activityLog }
-          : task
-      ),
-    }));
-
-    if (prev && prev.assigneeId && prev.assigneeId !== currentUserId && prev.status !== newStatus) {
-      void createNotification(
-        prev.assigneeId,
-        "Status atualizado",
-        `"${prev.title}" foi movida para ${get().boards.find((b: Board) => b.key === newStatus)?.name ?? newStatus}`,
-        "status_changed",
-        taskId
-      );
+    set((state) => ({ tasks: state.tasks.map((task) => task.id === taskId
+      ? { ...movedTask, comments: task.comments, activityLog: task.activityLog } : task) }));
+    if (previous.columnId !== columnId) {
+      await get().addActivityEntry(taskId, { taskId, userId: currentUser.id, action: "status_changed", details: `moveu a tarefa para ${target.name}` });
+      if (previous.assigneeId && previous.assigneeId !== currentUser.id) {
+        void createNotification(previous.assigneeId, "Status atualizado", `"${previous.title}" foi movida para ${target.name}`, "status_changed", taskId);
+      }
     }
-
     return true;
   },
 
   archiveTask: async (taskId) => {
+    const task = get().tasks.find((entry) => entry.id === taskId);
+    if (!task || !getKanbanPermissions(get().currentUser, get().columns).canArchiveTask() ||
+      !isTaskCompleted(task, get().columns)) return false;
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("tasks")
       .update({ archived: true, archived_at: now, updated_at: now })
       .eq("id", taskId)
+      .eq("kanban_id", task.kanbanId)
       .select("*")
       .single();
 
@@ -748,11 +853,15 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   unarchiveTask: async (taskId) => {
+    const task = get().tasks.find((entry) => entry.id === taskId);
+    if (!task ||
+      !getKanbanPermissions(get().currentUser, get().columns).canArchiveTask()) return false;
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("tasks")
       .update({ archived: false, archived_at: null, updated_at: now })
       .eq("id", taskId)
+      .eq("kanban_id", task.kanbanId)
       .select("*")
       .single();
 
@@ -911,14 +1020,14 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   // Filters
-  filters: { department: "all", assignee: "all", priority: "all", status: "all" },
+  filters: { department: "all", assignee: "all", priority: "all", columnId: "all" },
   setFilter: (key, value) =>
     set((state) => ({
       filters: { ...state.filters, [key]: value },
     })),
   clearFilters: () =>
     set({
-      filters: { department: "all", assignee: "all", priority: "all", status: "all" },
+      filters: { department: "all", assignee: "all", priority: "all", columnId: "all" },
     }),
 
   // Search
@@ -962,19 +1071,21 @@ export const useStore = create<AppState>((set, get) => {
   taskModalOpen: false,
   taskModalMode: "view",
   taskModalTaskId: null,
-  taskModalDefaultStatus: null,
-  openTaskModal: (mode, taskId = null, defaultStatus = null) =>
-    set({
-      taskModalOpen: true,
-      taskModalMode: mode,
-      taskModalTaskId: taskId,
-      taskModalDefaultStatus: defaultStatus,
-    }),
+  taskModalDefaultColumnId: null,
+  openTaskModal: (mode, taskId = null, defaultColumnId = null) => {
+    const { activeKanbanId, columns, tasks, currentUser } = get();
+    if (!activeKanbanId) return;
+    if (mode !== "create" && !tasks.some((task) => task.id === taskId && task.kanbanId === activeKanbanId)) return;
+    if (mode === "create" && !getKanbanPermissions(currentUser, columns).canCreateTask()) return;
+    const initialColumn = columns.find((column) => column.id === defaultColumnId && column.kanbanId === activeKanbanId) ?? columns[0];
+    if (!initialColumn) return;
+    set({ taskModalOpen: true, taskModalMode: mode, taskModalTaskId: taskId, taskModalDefaultColumnId: initialColumn.id });
+  },
   closeTaskModal: () =>
     set({
       taskModalOpen: false,
       taskModalTaskId: null,
-      taskModalDefaultStatus: null,
+      taskModalDefaultColumnId: null,
     }),
 
   // Customers

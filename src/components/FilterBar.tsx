@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import type { Department, TaskPriority, TaskStatus } from "@/types";
+import type { Department, TaskPriority } from "@/types";
 
 const departments: { value: Department | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -25,17 +25,17 @@ export function FilterBar({ showStatusFilter = false }: FilterBarProps) {
   const filters = useStore((s) => s.filters);
   const setFilter = useStore((s) => s.setFilter);
   const clearFilters = useStore((s) => s.clearFilters);
-  const boards = useStore((s) => s.boards);
-  const statuses: { value: TaskStatus | "all"; label: string }[] = [
+  const columns = useStore((s) => s.columns);
+  const statuses: { value: string; label: string }[] = [
     { value: "all", label: "Todos" },
-    ...boards.map((b) => ({ value: b.key as TaskStatus, label: b.name })),
+    ...columns.map((b) => ({ value: b.id, label: b.name })),
   ];
 
   const hasActiveFilters =
     filters.department !== "all" ||
     filters.assignee !== "all" ||
     filters.priority !== "all" ||
-    (showStatusFilter && filters.status !== "all");
+    (showStatusFilter && filters.columnId !== "all");
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -58,6 +58,7 @@ export function FilterBar({ showStatusFilter = false }: FilterBarProps) {
 
       {/* Priority dropdown */}
       <select
+        aria-label="Filtrar prioridade"
         value={filters.priority}
         onChange={(e) => setFilter("priority", e.target.value as TaskPriority | "all")}
         className="h-8 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md text-[11px] font-medium text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)] cursor-pointer"
@@ -72,8 +73,9 @@ export function FilterBar({ showStatusFilter = false }: FilterBarProps) {
       {/* Status dropdown (for list view) */}
       {showStatusFilter && (
         <select
-          value={filters.status}
-          onChange={(e) => setFilter("status", e.target.value as TaskStatus | "all")}
+          aria-label="Filtrar coluna"
+          value={filters.columnId}
+          onChange={(e) => setFilter("columnId", e.target.value as string)}
           className="h-8 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-md text-[11px] font-medium text-[var(--c-text)] outline-none focus:border-[var(--c-border-2)] cursor-pointer"
         >
           {statuses.map((s) => (

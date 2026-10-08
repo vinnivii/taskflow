@@ -2,6 +2,8 @@
 
 Sistema interno de gerenciamento de tarefas da Softcom, com suporte a múltiplos setores, controle de prioridades e acompanhamento de atividades em tempo real.
 
+O suporte a múltiplos Kanbans separa quadros, colunas e tarefas por IDs. Consulte [arquitetura, migration, permissões e testes](docs/multi-kanban.md) antes de implantar esta versão. O enum `task_status` abaixo é legado; as colunas atuais usam `kind` e cada tarefa possui `kanban_id`/`column_id`.
+
 ## Visão Geral
 
 O TaskFlow permite que equipes dos setores Comercial, Financeiro e Suporte criem, atribuam e acompanhem tarefas em um kanban colaborativo. Cada usuário vê e interage com o sistema de acordo com seu papel (role), com permissões distintas para supervisores, técnicos, estagiários e outros.

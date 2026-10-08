@@ -7,6 +7,7 @@ import { useStore } from "@/store/useStore";
 import { supabase } from "@/utils/supabase";
 import { departmentDisplayNames, priorityColors, priorityDisplayNames } from "@/types";
 import type { Department, TaskPriority, ActivityEntry } from "@/types";
+import { selectActiveKanban } from "@/lib/kanban";
 
 type DateRange = "all" | "today" | "week" | "month" | "custom";
 
@@ -16,6 +17,14 @@ const deptColors: Record<Department, string> = {
   financeiro: "#22C55E",
 };
 
+function DiffBadge({ diff }: { diff: number | null }) {
+    if (diff === null) return <span className="text-[11px] text-[var(--c-muted-2)]">sem dados anteriores</span>;
+    if (diff === 0) return <span className="flex items-center gap-1 text-[11px] text-[var(--c-muted-2)]"><Minus size={12} />igual ao anterior</span>;
+    return diff > 0
+      ? <span className="flex items-center gap-1 text-[11px] text-[#22C55E]"><ArrowUp size={12} />+{diff}% vs anterior</span>
+      : <span className="flex items-center gap-1 text-[11px] text-[#EF4444]"><ArrowDown size={12} />{diff}% vs anterior</span>;
+}
+
 export function Relatorios() {
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [customModalOpen, setCustomModalOpen] = useState(false);
@@ -24,21 +33,26 @@ export function Relatorios() {
   const [appliedCustomStart, setAppliedCustomStart] = useState<Date | null>(null);
   const [appliedCustomEnd, setAppliedCustomEnd] = useState<Date | null>(null);
 
+  const activeKanban = useStore(selectActiveKanban);
   const tasks = useStore((s) => s.tasks);
   const users = useStore((s) => s.users);
-  const boards = useStore((s) => s.boards);
+  const columns = useStore((s) => s.columns);
   const [recentActivityFeed, setRecentActivityFeed] = useState<(ActivityEntry & { taskTitle: string })[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadActivity() {
+      if (!activeKanban) return;
       const { data, error } = await supabase
         .from("activity_logs")
-        .select("id, task_id, user_id, action, details, created_at")
+        .select("id, task_id, user_id, action, details, created_at, tasks!inner(title, kanban_id)")
+        .eq("tasks.kanban_id", activeKanban.id)
         .order("created_at", { ascending: false })
         .limit(50);
-      if (error || !data) return;
+      if (cancelled || error || !data) return;
       const entries = data.map((row) => {
-        const task = tasks.find((t) => t.id === row.task_id);
+        const related = row.tasks as unknown as { title: string } | { title: string }[];
+        const taskTitle = Array.isArray(related) ? related[0]?.title : related.title;
         return {
           id: row.id,
           taskId: row.task_id,
@@ -46,13 +60,14 @@ export function Relatorios() {
           action: row.action as ActivityEntry["action"],
           details: row.details,
           createdAt: new Date(row.created_at),
-          taskTitle: task?.title ?? "",
+          taskTitle: taskTitle ?? "",
         };
       });
       setRecentActivityFeed(entries);
     }
     void loadActivity();
-  }, [tasks]);
+    return () => { cancelled = true; };
+  }, [tasks, activeKanban]);
 
   const { startDate, endDate, prevStartDate, prevEndDate } = useMemo(() => {
     const now = new Date();
@@ -97,27 +112,27 @@ export function Relatorios() {
   }, [dateRange, appliedCustomStart, appliedCustomEnd]);
 
   const filteredTasks = useMemo(() =>
-    tasks.filter((t) => !t.archived && t.createdAt >= startDate && t.createdAt <= endDate),
-    [tasks, startDate, endDate]
+    tasks.filter((t) => t.kanbanId === activeKanban?.id && !t.archived && t.createdAt >= startDate && t.createdAt <= endDate),
+    [tasks, startDate, endDate, activeKanban?.id]
   );
 
   const prevTasks = useMemo(() =>
-    tasks.filter((t) => !t.archived && t.createdAt >= prevStartDate && t.createdAt <= prevEndDate),
-    [tasks, prevStartDate, prevEndDate]
+    tasks.filter((t) => t.kanbanId === activeKanban?.id && !t.archived && t.createdAt >= prevStartDate && t.createdAt <= prevEndDate),
+    [tasks, prevStartDate, prevEndDate, activeKanban?.id]
   );
 
-  const concludedKey = boards.find((b) => b.key === "concluido")?.key ?? "concluido";
+  const completedColumnId = columns.find((column) => column.kind === "completed")?.id;
 
   const metrics = useMemo(() => {
     const total = filteredTasks.length;
-    const completed = filteredTasks.filter((t) => t.status === concludedKey).length;
+    const completed = filteredTasks.filter((t) => t.columnId === completedColumnId).length;
     const pending = total - completed;
     const overdue = filteredTasks.filter(
-      (t) => t.dueDate && t.dueDate < new Date() && t.status !== concludedKey
+      (t) => t.dueDate && t.dueDate < new Date() && t.columnId !== completedColumnId
     ).length;
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    const completedTasks = filteredTasks.filter((t) => t.status === concludedKey);
+    const completedTasks = filteredTasks.filter((t) => t.columnId === completedColumnId);
     const avgTime = completedTasks.length > 0
       ? (completedTasks.reduce((sum, t) => {
           return sum + Math.max(1, Math.ceil((t.updatedAt.getTime() - t.createdAt.getTime()) / 86400000));
@@ -125,21 +140,21 @@ export function Relatorios() {
       : "0";
 
     const prevTotal = prevTasks.length;
-    const prevCompleted = prevTasks.filter((t) => t.status === concludedKey).length;
+    const prevCompleted = prevTasks.filter((t) => t.columnId === completedColumnId).length;
     const totalDiff = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
     const completedDiff = prevCompleted > 0 ? Math.round(((completed - prevCompleted) / prevCompleted) * 100) : null;
 
     return { total, completed, pending, overdue, completionRate, avgTime, totalDiff, completedDiff };
-  }, [filteredTasks, prevTasks, concludedKey]);
+  }, [filteredTasks, prevTasks, completedColumnId]);
 
   const statusDistribution = useMemo(() => {
-    const dist: Record<string, number> = Object.fromEntries(boards.map((b) => [b.key, 0]));
+    const dist: Record<string, number> = Object.fromEntries(columns.map((b) => [b.id, 0]));
     for (const t of filteredTasks) {
-      if (dist[t.status] !== undefined) dist[t.status]++;
+      if (dist[t.columnId] !== undefined) dist[t.columnId]++;
     }
     const maxCount = Math.max(...Object.values(dist), 1);
     return { dist, maxCount };
-  }, [filteredTasks, boards]);
+  }, [filteredTasks, columns]);
 
   const priorityDistribution = useMemo(() => {
     const dist: Record<TaskPriority, number> = { urgent: 0, high: 0, medium: 0, low: 0 };
@@ -158,14 +173,14 @@ export function Relatorios() {
   const memberStats = useMemo(() => {
     return users.map((u) => {
       const assigned = filteredTasks.filter((t) => t.assigneeId === u.id);
-      const done = assigned.filter((t) => t.status === concludedKey).length;
+      const done = assigned.filter((t) => t.columnId === completedColumnId).length;
       const overdueCount = assigned.filter(
-        (t) => t.dueDate && t.dueDate < new Date() && t.status !== concludedKey
+        (t) => t.dueDate && t.dueDate < new Date() && t.columnId !== completedColumnId
       ).length;
       const rate = assigned.length > 0 ? Math.round((done / assigned.length) * 100) : 0;
       return { user: u, total: assigned.length, done, overdueCount, rate };
     }).filter((s) => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredTasks, users, concludedKey]);
+  }, [filteredTasks, users, completedColumnId]);
 
   const recentActivity = useMemo(() => {
     return recentActivityFeed
@@ -192,16 +207,10 @@ export function Relatorios() {
     setCustomModalOpen(false);
   }
 
-  const DiffBadge = ({ diff }: { diff: number | null }) => {
-    if (diff === null) return <span className="text-[11px] text-[var(--c-muted-2)]">sem dados anteriores</span>;
-    if (diff === 0) return <span className="flex items-center gap-1 text-[11px] text-[var(--c-muted-2)]"><Minus size={12} />igual ao anterior</span>;
-    return diff > 0
-      ? <span className="flex items-center gap-1 text-[11px] text-[#22C55E]"><ArrowUp size={12} />+{diff}% vs anterior</span>
-      : <span className="flex items-center gap-1 text-[11px] text-[#EF4444]"><ArrowDown size={12} />{diff}% vs anterior</span>;
-  };
+
 
   return (
-    <AppLayout title="Relatorios">
+    <AppLayout title={`Relatórios / ${activeKanban?.name ?? ""}`}>
       {customModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setCustomModalOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
@@ -320,11 +329,11 @@ export function Relatorios() {
         <div className="bg-[var(--c-surface)] border border-[var(--c-border)] rounded-lg p-4 md:p-6">
           <h2 className="text-[16px] font-semibold text-[var(--c-text)] tracking-[-0.4px] mb-4">Tarefas por status</h2>
           <div className="space-y-2.5">
-            {boards.map((board) => {
-              const count = statusDistribution.dist[board.key] ?? 0;
+            {columns.map((board) => {
+              const count = statusDistribution.dist[board.id] ?? 0;
               const pct = (count / statusDistribution.maxCount) * 100;
               return (
-                <div key={board.key} className="flex items-center gap-3">
+                <div key={board.id} className="flex items-center gap-3">
                   <span className="text-[12px] text-[var(--c-muted)] w-24 md:w-28 shrink-0 truncate">{board.name}</span>
                   <div className="flex-1 h-6 bg-[var(--c-surface-3)] rounded overflow-hidden">
                     <div className="h-full rounded transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: board.color, opacity: 0.85 }} />

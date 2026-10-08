@@ -22,17 +22,19 @@ import { supabase } from "@/utils/supabase";
 import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { roleDisplayNames, departmentDisplayNames } from "@/types";
+import { selectActiveKanban } from "@/lib/kanban";
 
 const navItems = [
   { to: "/quadro", icon: LayoutDashboard, label: "Quadro" },
   { to: "/tarefas", icon: ListChecks, label: "Tarefas" },
   { to: "/equipe", icon: Users, label: "Equipe", permission: "canViewEquipe" as const },
   { to: "/relatorios", icon: BarChart3, label: "Relatorios", permission: "canViewRelatorios" as const },
-  { to: "/configuracoes", icon: Settings, label: "Configurações", permission: "canManageBoards" as const },
+  { to: "/configuracoes", icon: Settings, label: "Configurações", permission: "canManageKanbans" as const },
   { to: "/clientes", icon: Handshake, label: "Clientes", permission: "canViewClientes" as const },
 ];
 
 export function Sidebar() {
+  const activeKanban = useStore(selectActiveKanban);
   const expanded = useStore((s) => s.sidebarExpanded);
   const toggle = useStore((s) => s.toggleSidebar);
   const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
@@ -172,7 +174,7 @@ export function Sidebar() {
             return (
               <NavLink
                 key={item.to}
-                to={item.to}
+                to={activeKanban ? `${item.to}/${activeKanban.slug}` : item.to}
                 onClick={() => isMobile && closeMobileSidebar()}
                 className={({ isActive: active }) =>
                   `flex items-center gap-3 px-3 h-10 rounded-md transition-all duration-[150ms] group relative ${
@@ -247,6 +249,7 @@ export function Sidebar() {
           {/* Recolher/Alternar — somente para desktop */}
           {!isMobile && (
             <button
+              aria-label={expanded ? "Recolher menu" : "Expandir menu"}
               onClick={toggle}
               className="flex items-center justify-center w-full h-8 rounded-md text-[var(--c-muted-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-hover)] transition-colors group"
             >

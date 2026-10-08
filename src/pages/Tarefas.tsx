@@ -30,12 +30,14 @@ import {
   priorityDisplayNames,
   departmentDisplayNames,
 } from "@/types";
-import type { Task, TaskPriority, TaskStatus, Department } from "@/types";
+import type { Task } from "@/types";
+import { isTaskCompleted, selectActiveKanban } from "@/lib/kanban";
 
 type SortColumn = "title" | "assignee" | "department" | "priority" | "status" | "dueDate" | null;
 type SortDirection = "asc" | "desc";
 
 export function Tarefas() {
+  const activeKanban = useStore(selectActiveKanban);
   const tasks = useStore((s) => s.tasks);
   const users = useStore((s) => s.users);
   const filters = useStore((s) => s.filters);
@@ -43,9 +45,9 @@ export function Tarefas() {
   const openTaskModal = useStore((s) => s.openTaskModal);
   const unarchiveTask = useStore((s) => s.unarchiveTask);
   const addToast = useStore((s) => s.addToast);
-  const boards = useStore((s) => s.boards);
-  const statusColors = Object.fromEntries(boards.map((b) => [b.key, b.color]));
-  const statusDisplayNames = Object.fromEntries(boards.map((b) => [b.key, b.name]));
+  const kanbanColumns = useStore((s) => s.columns);
+  const statusColors = Object.fromEntries(kanbanColumns.map((b) => [b.id, b.color]));
+  const statusDisplayNames = Object.fromEntries(kanbanColumns.map((b) => [b.id, b.name]));
   const perms = usePermissions();
   const isMobile = useIsMobile();
 
@@ -76,7 +78,7 @@ export function Tarefas() {
   };
 
   const filteredTasks = useMemo(() => {
-    let result = [...tasks];
+    let result = tasks.filter((task) => task.kanbanId === activeKanban?.id);
 
     if (filters.department !== "all") {
       result = result.filter((t) => t.department === filters.department);
@@ -84,8 +86,8 @@ export function Tarefas() {
     if (filters.priority !== "all") {
       result = result.filter((t) => t.priority === filters.priority);
     }
-    if (filters.status !== "all") {
-      result = result.filter((t) => t.status === filters.status);
+    if (filters.columnId !== "all") {
+      result = result.filter((t) => t.columnId === filters.columnId);
     }
     if (filters.assignee === "me") {
       const currentUserId = useStore.getState().currentUser?.id;
@@ -136,8 +138,7 @@ export function Tarefas() {
             break;
           }
           case "status": {
-            const order = ["novo", "em_andamento", "em_revisao", "concluido", "bloqueado"];
-            cmp = order.indexOf(a.status) - order.indexOf(b.status);
+            cmp = (kanbanColumns.find((column) => column.id === a.columnId)?.position ?? 0) - (kanbanColumns.find((column) => column.id === b.columnId)?.position ?? 0);
             break;
           }
           case "dueDate":
@@ -149,18 +150,19 @@ export function Tarefas() {
     }
 
     return result;
-  }, [tasks, filters, searchQuery, sortColumn, sortDirection]);
+  }, [tasks, filters, searchQuery, sortColumn, sortDirection, kanbanColumns, activeKanban?.id]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / perPage));
+  const page = Math.min(currentPage, totalPages);
   const paginatedTasks = filteredTasks.slice(
-    (currentPage - 1) * perPage,
-    currentPage * perPage
+    (page - 1) * perPage,
+    page * perPage
   );
 
   const formatDueDate = (task: Task) => {
     if (!task.dueDate) return "—";
     if (isToday(task.dueDate)) return <span className="text-[#EF4444]">Hoje</span>;
-    if (isPast(task.dueDate) && task.status !== "concluido")
+    if (isPast(task.dueDate) && !isTaskCompleted(task, kanbanColumns))
       return (
         <span className="text-[#EF4444] flex items-center gap-1">
           <AlertTriangle size={12} /> Atrasado
@@ -189,9 +191,9 @@ export function Tarefas() {
 
   if (isMobile) {
     return (
-      <AppLayout title="Tarefas">
+      <AppLayout title={`Tarefas / ${activeKanban?.name ?? ""}`}>
         <div className="mb-4">
-          <FilterBar />
+          <FilterBar showStatusFilter />
         </div>
         <div className="flex flex-col gap-2">
           {paginatedTasks.length === 0 ? (
@@ -201,7 +203,7 @@ export function Tarefas() {
             </div>
           ) : paginatedTasks.map((task) => {
             const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
-            const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && task.status !== "concluido";
+            const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && !isTaskCompleted(task, kanbanColumns);
             return (
               <div
                 key={task.id}
@@ -210,8 +212,8 @@ export function Tarefas() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-mono text-[var(--c-muted-2)]">#{task.idTask}{task.idRfc ? ` · RFC-${task.idRfc}` : ""}</span>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${statusColors[task.status]}20`, color: statusColors[task.status] }}>
-                    {statusDisplayNames[task.status]}
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${statusColors[task.columnId]}20`, color: statusColors[task.columnId] }}>
+                    {statusDisplayNames[task.columnId]}
                   </span>
                 </div>
                 <p className="text-[14px] font-semibold text-[var(--c-text)] leading-snug mb-2 line-clamp-2">{task.title}</p>
@@ -237,15 +239,15 @@ export function Tarefas() {
           <div className="flex items-center justify-between mt-4 gap-3">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={page === 1}
               className="flex-1 h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-lg text-[13px] text-[var(--c-muted)] disabled:opacity-40 transition-colors"
             >
               Anterior
             </button>
-            <span className="text-[12px] text-[var(--c-muted-2)] shrink-0">{currentPage} / {totalPages}</span>
+            <span className="text-[12px] text-[var(--c-muted-2)] shrink-0">{page} / {totalPages}</span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={page === totalPages}
               className="flex-1 h-10 bg-[var(--c-surface-3)] border border-[var(--c-border)] rounded-lg text-[13px] text-[var(--c-muted)] disabled:opacity-40 transition-colors"
             >
               Próximo
@@ -257,7 +259,7 @@ export function Tarefas() {
   }
 
   return (
-    <AppLayout title="Tarefas">
+    <AppLayout title={`Tarefas / ${activeKanban?.name ?? ""}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -379,11 +381,11 @@ export function Tarefas() {
                           <span
                             className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-[0.5px]"
                             style={{
-                              backgroundColor: `${statusColors[task.status]}26`,
-                              color: statusColors[task.status],
+                              backgroundColor: `${statusColors[task.columnId]}26`,
+                              color: statusColors[task.columnId],
                             }}
                           >
-                            {statusDisplayNames[task.status]}
+                            {statusDisplayNames[task.columnId]}
                           </span>
 
                           {task.archived && (
@@ -485,29 +487,29 @@ export function Tarefas() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
+                    disabled={page === 1}
                     className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     Anterior
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={pageNumber}
+                      onClick={() => setCurrentPage(pageNumber)}
                       className={`w-9 h-9 text-[11px] font-medium rounded-md transition-colors ${
-                        page === currentPage
+                        pageNumber === page
                           ? "bg-[#F2C94C] text-[#0A0A0A]"
                           : "bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] hover:bg-[var(--c-hover)]"
                       }`}
                     >
-                      {page}
+                      {pageNumber}
                     </button>
                   ))}
 
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={page === totalPages}
                     className="h-9 px-3 bg-[var(--c-surface-3)] border border-[var(--c-border)] text-[var(--c-muted)] text-[13px] rounded-md hover:bg-[var(--c-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     Próxima

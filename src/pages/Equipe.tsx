@@ -12,8 +12,10 @@ import {
   roleDepartmentMap,
 } from "@/types";
 import type { User, UserRole, Department } from "@/types";
+import { isTaskCompleted } from "@/lib/kanban";
 
 export function Equipe() {
+  const columns = useStore((state) => state.columns);
   const users = useStore((s) => s.users);
   const tasks = useStore((s) => s.tasks);
   const perms = usePermissions();
@@ -86,13 +88,13 @@ export function Equipe() {
     }
 
     return result;
-  }, [search, deptFilter, roleFilter]);
+  }, [users, search, deptFilter, roleFilter]);
 
   // Calculate member stats
   const getMemberStats = (userId: string) => {
     const userTasks = tasks.filter((t) => t.assigneeId === userId);
-    const active = userTasks.filter((t) => t.status !== "concluido").length;
-    const completed = userTasks.filter((t) => t.status === "concluido").length;
+    const active = userTasks.filter((t) => !isTaskCompleted(t, columns)).length;
+    const completed = userTasks.filter((t) => isTaskCompleted(t, columns)).length;
     return { active, completed };
   };
 
@@ -334,38 +336,11 @@ export function Equipe() {
                         <span
                           className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
                           style={{
-                            backgroundColor: `${
-                              task.status === "novo"
-                                ? "#A855F7"
-                                : task.status === "em_andamento"
-                                  ? "#3B82F6"
-                                  : task.status === "em_revisao"
-                                    ? "#F97316"
-                                    : task.status === "concluido"
-                                      ? "#22C55E"
-                                      : "#EF4444"
-                            }26`,
-                            color:
-                              task.status === "novo"
-                                ? "#A855F7"
-                                : task.status === "em_andamento"
-                                  ? "#3B82F6"
-                                  : task.status === "em_revisao"
-                                    ? "#F97316"
-                                    : task.status === "concluido"
-                                      ? "#22C55E"
-                                      : "#EF4444",
+                            backgroundColor: `${columns.find((column) => column.id === task.columnId)?.color ?? "#8A8A8A"}26`,
+                            color: columns.find((column) => column.id === task.columnId)?.color ?? "#8A8A8A",
                           }}
                         >
-                          {task.status === "novo"
-                            ? "Novo"
-                            : task.status === "em_andamento"
-                              ? "Em Andamento"
-                              : task.status === "em_revisao"
-                                ? "Em Revisao"
-                                : task.status === "concluido"
-                                  ? "Concluido"
-                                  : "Bloqueado"}
+                          {columns.find((column) => column.id === task.columnId)?.name ?? "Coluna indispon?vel"}
                         </span>
                       </div>
                     ))}

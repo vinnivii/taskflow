@@ -10,6 +10,7 @@ import { useStore } from "@/store/useStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { useEffect } from "react";
+import { KanbanScope } from "@/components/KanbanScope";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useStore((s) => s.isAuthenticated);
@@ -25,7 +26,7 @@ function RoleGuard({
   permission,
 }: {
   children: React.ReactNode;
-  permission: "canViewEquipe" | "canViewRelatorios" | "canManageBoards" | "canViewClientes";
+  permission: "canViewEquipe" | "canViewRelatorios" | "canManageKanbans" | "canViewClientes";
 }) {
   const perms = usePermissions();
   return perms[permission] ? <>{children}</> : <Navigate to="/quadro" replace />;
@@ -38,7 +39,7 @@ function App() {
 
   useEffect(() => {
     void initAuth();
-  }, []);
+  }, [initAuth]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -48,8 +49,9 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route element={<PrivateRoute><KanbanScope /></PrivateRoute>}>
       <Route
-        path="/quadro"
+        path="/quadro/:kanbanSlug?"
         element={
           <PrivateRoute>
             <Quadro />
@@ -57,7 +59,7 @@ function App() {
         }
       />
       <Route
-        path="/tarefas"
+        path="/tarefas/:kanbanSlug?"
         element={
           <PrivateRoute>
             <Tarefas />
@@ -65,7 +67,7 @@ function App() {
         }
       />
       <Route
-        path="/equipe"
+        path="/equipe/:kanbanSlug?"
         element={
           <PrivateRoute>
             <RoleGuard permission="canViewEquipe">
@@ -75,7 +77,7 @@ function App() {
         }
       />
       <Route
-        path="/relatorios"
+        path="/relatorios/:kanbanSlug?"
         element={
           <PrivateRoute>
             <RoleGuard permission="canViewRelatorios">
@@ -85,17 +87,17 @@ function App() {
         }
       />
       <Route
-        path="/configuracoes"
+        path="/configuracoes/:kanbanSlug?"
         element={
           <PrivateRoute>
-            <RoleGuard permission="canManageBoards">
+            <RoleGuard permission="canManageKanbans">
               <Configuracoes />
             </RoleGuard>
           </PrivateRoute>
         }
       />
       <Route
-        path="/clientes"
+        path="/clientes/:kanbanSlug?"
         element={
           <PrivateRoute>
             <RoleGuard permission="canViewClientes">
@@ -104,6 +106,7 @@ function App() {
           </PrivateRoute>
         }
       />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

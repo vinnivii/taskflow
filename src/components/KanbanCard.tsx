@@ -8,12 +8,14 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { priorityColors } from "@/types";
 import type { Task } from "@/types";
+import { isTaskCompleted } from "@/lib/kanban";
 
 interface KanbanCardProps {
   task: Task;
 }
 
 export function KanbanCard({ task }: KanbanCardProps) {
+  const columns = useStore((state) => state.columns);
   const openTaskModal = useStore((s) => s.openTaskModal);
   const users = useStore((s) => s.users);
   const archiveTask = useStore((s) => s.archiveTask);
@@ -40,7 +42,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
 
   const customers = useStore((s) => s.customers);
   const assignee = users.find((u) => u.id === task.assigneeId) ?? null;
-  const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && task.status !== "concluido";
+  const isOverdue = task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate) && !isTaskCompleted(task, columns);
 
   return (
     <div
@@ -167,7 +169,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
           </div>
 
           <div className="flex items-center gap-2 text-[var(--c-muted-2)]">
-            {task.status === "concluido" && !task.archived && perms.canArchiveTask() && (
+            {isTaskCompleted(task, columns) && !task.archived && perms.canArchiveTask() && (
               <button
                 type="button"
                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}

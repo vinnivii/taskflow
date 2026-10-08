@@ -10,14 +10,28 @@ export type Department = "comercial" | "financeiro" | "suporte";
 
 export type TaskPriority = "urgent" | "high" | "medium" | "low";
 
-export type TaskStatus = string;
-
-export interface Board {
+export interface Kanban {
   id: string;
-  key: string;
+  slug: string;
   name: string;
   color: string;
   position: number;
+  createdBy: string | null;
+  createdAt: Date;
+  taskCount: number;
+}
+
+export type KanbanColumnKind = "normal" | "completed" | "blocked";
+
+export interface KanbanColumn {
+  id: string;
+  kanbanId: string;
+  key: string;
+  name: string;
+  color: string;
+  kind: KanbanColumnKind;
+  position: number;
+  createdAt: Date;
 }
 
 export interface User {
@@ -62,7 +76,8 @@ export interface Task {
   title: string;
   description: string;
   priority: TaskPriority;
-  status: TaskStatus;
+  kanbanId: string;
+  columnId: string;
   department: Department;
   assigneeId: string | null;
   customerId: string | null;
