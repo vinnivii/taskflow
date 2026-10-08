@@ -78,6 +78,7 @@ type TaskRow = {
   attachments_count?: number | null;
   archived?: boolean | null;
   archived_at?: string | null;
+  trello_position?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -97,6 +98,8 @@ type ActivityRow = {
   user_id: string;
   action: ActivityEntry["action"];
   details: string;
+  external_actor_name?: string | null;
+  external_source?: string | null;
   created_at: string;
 };
 
@@ -130,6 +133,7 @@ const toTask = (row: TaskRow): Task => ({
   attachmentsCount: row.attachments_count ?? 0,
   archived: row.archived ?? false,
   archivedAt: row.archived_at ? new Date(row.archived_at) : null,
+  trelloPosition: row.trello_position ?? null,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
@@ -937,6 +941,8 @@ export const useStore = create<AppState>((set, get) => {
       userId: row.user_id,
       action: row.action,
       details: row.details,
+      externalActorName: row.external_actor_name ?? null,
+      externalSource: row.external_source ?? null,
       createdAt: new Date(row.created_at),
     }));
 
