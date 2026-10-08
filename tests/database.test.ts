@@ -26,7 +26,7 @@ async function legacyDatabase() {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated, anon;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO authenticated;
   `);
-  for (const filename of readdirSync(migrationsDir).sort().filter((file) => file.endsWith(".sql") && !file.startsWith("20261007"))) {
+  for (const filename of readdirSync(migrationsDir).sort().filter((file) => file.endsWith(".sql") && file < "20261007000000")) {
     await db.exec(readFileSync(new URL(filename, migrationsDir), "utf8"));
   }
   for (const [index, role] of roles.entries()) {

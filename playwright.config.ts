@@ -7,6 +7,6 @@ export default defineConfig({
   webServer: {
     command: "npx vite --host 127.0.0.1 --port 4174 --strictPort",
     url: "http://127.0.0.1:4174", reuseExistingServer: false,
-    env: { VITE_SUPABASE_URL: "http://127.0.0.1:54321", VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-placeholder", VITE_SUPABASE_SERVICE_ROLE_KEY: "e2e-admin-placeholder" },
+    env: { VITE_SUPABASE_URL: "http://127.0.0.1:54321", VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-placeholder" },
   },
 });
