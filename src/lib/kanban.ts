@@ -1,5 +1,7 @@
 import type { Kanban, KanbanColumn, Task, User } from "@/types";
 
+export const COLUMN_KIND_LABELS = { normal: "Normal", completed: "Concluída", blocked: "Bloqueada" };
+
 export function slugify(value: string): string {
   return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -12,6 +14,14 @@ export function uniqueKanbanSlug(name: string, kanbans: Kanban[]): string {
   let suffix = 2;
   while (kanbans.some((kanban) => kanban.slug === slug)) slug = `${base}-${suffix++}`;
   return slug;
+}
+
+export function uniqueColumnKey(name: string, columns: KanbanColumn[], kanbanId: string): string {
+  const base = slugify(name) || "coluna";
+  let key = base;
+  let suffix = 2;
+  while (columns.some((column) => column.kanbanId === kanbanId && column.key === key)) key = `${base}-${suffix++}`;
+  return key;
 }
 
 export function sortColumns(columns: KanbanColumn[]): KanbanColumn[] {

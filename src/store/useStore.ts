@@ -229,7 +229,7 @@ interface AppState {
   reorderKanbans: (ids: string[]) => Promise<boolean>;
   columns: KanbanColumn[];
   fetchColumns: (kanbanId: string) => Promise<boolean>;
-  createColumn: (data: { key: string; name: string; color: string; kind: KanbanColumnKind }) => Promise<boolean>;
+  createColumn: (data: { key: string; name: string; color: string; kind: KanbanColumnKind; position?: number }) => Promise<boolean>;
   updateColumn: (id: string, data: Partial<Pick<KanbanColumn, "name" | "color" | "kind">>) => Promise<boolean>;
   deleteColumnWithTasks: (id: string, mode: "transfer" | "delete", destinationId?: string) => Promise<boolean>;
   reorderColumns: (ids: string[]) => Promise<boolean>;
@@ -547,20 +547,33 @@ export const useStore = create<AppState>((set, get) => {
       columnId: state.filters.columnId === "all" || columns.some((column) => column.id === state.filters.columnId) ? state.filters.columnId : "all" } }));
     return true;
   },
-  createColumn: async ({ key, name, color, kind }) => {
+  createColumn: async ({ key, name, color, kind, position: requestedPosition }) => {
     const { activeKanbanId, columns, currentUser } = get();
     if (!activeKanbanId || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
+    const version = scopeVersion;
     const position = columns.length ? Math.max(...columns.map((column) => column.position)) + 1 : 0;
-    const { error } = await supabase.from("kanban_columns").insert({ kanban_id: activeKanbanId, key, name, color, kind, position });
-    if (error) { get().addToast({ type: "error", title: "Erro ao criar coluna", message: error.message }); return false; }
+    const { data, error } = await supabase.from("kanban_columns").insert({ kanban_id: activeKanbanId, key, name, color, kind, position }).select("*").single();
+    if (error || !data?.id) {
+      get().addToast({ type: "error", title: "Erro ao criar coluna", message: error?.code === "23505" ? "Já existe uma coluna com essa função ou identificador. Confira os status e tente novamente." : error?.message ?? "Criação não confirmada." });
+      await get().fetchColumns(activeKanbanId); return false;
+    }
+    set((state) => version !== scopeVersion || state.activeKanbanId !== activeKanbanId ? state : ({ columns: sortColumns([...state.columns.filter((column) => column.id !== data.id), toColumn(data as ColumnRow)]) }));
     await get().fetchColumns(activeKanbanId);
+    // Creation has committed. A failed reorder must never prompt a duplicate insert.
+    if (version === scopeVersion && get().activeKanbanId === activeKanbanId && requestedPosition !== undefined) {
+      const ids = get().columns.filter((column) => column.id !== data.id).map((column) => column.id);
+      const index = Math.max(0, Math.min(Math.trunc(requestedPosition), ids.length));
+      ids.splice(index, 0, data.id);
+      if (get().columns.map((column) => column.id).some((id, index) => id !== ids[index])) await get().reorderColumns(ids);
+    }
     return true;
   },
   updateColumn: async (id, updates) => {
     const { activeKanbanId, columns, currentUser } = get();
     if (!activeKanbanId || !columns.some((column) => column.id === id) || !getKanbanPermissions(currentUser, columns).canManageKanbans) return false;
     const { data, error } = await supabase.from("kanban_columns").update(updates).eq("id", id).eq("kanban_id", activeKanbanId).select("id");
-    if (error || !data?.length) { get().addToast({ type: "error", title: "Erro ao atualizar coluna", message: error?.message ?? "Coluna removida ou sem permissão." }); return false; }
+    if (error || !data?.length) { get().addToast({ type: "error", title: "Erro ao atualizar coluna", message: error?.code === "23505" ? "Este Kanban já possui uma coluna com essa função. Escolha outro tipo funcional." : error?.message ?? "Coluna removida ou sem permissão." }); return false; }
+    set((state) => state.activeKanbanId !== activeKanbanId ? state : ({ columns: state.columns.map((column) => column.id === id ? { ...column, ...updates } : column) }));
     await get().fetchColumns(activeKanbanId);
     return true;
   },
