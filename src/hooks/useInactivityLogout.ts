@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "@/store/useStore";
 
-const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
+const INACTIVITY_MS = 5 * 60 * 60 * 1000; // 5 horas
 
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
 
