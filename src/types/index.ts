@@ -65,6 +65,8 @@ export interface ActivityEntry {
     | "priority_changed"
     | "edited";
   details: string;
+  externalActorName?: string | null;
+  externalSource?: string | null;
   createdAt: Date;
 }
 
@@ -89,6 +91,7 @@ export interface Task {
   archivedAt: Date | null;
   comments?: Comment[];
   activityLog?: ActivityEntry[];
+  trelloPosition?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
